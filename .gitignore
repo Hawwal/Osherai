@@ -1,5 +1,4 @@
 ### SECURITY — never commit these ###
-config/keys.js
 .env
 .env.*
 *.pem
