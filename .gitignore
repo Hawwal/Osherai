@@ -1,0 +1,28 @@
+### SECURITY — never commit these ###
+config/keys.js
+.env
+.env.*
+*.pem
+*.key
+
+### Node ###
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+### Build outputs ###
+dist/
+build/
+.cache/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.vscode/
+.idea/
+*.swp
+*.swo

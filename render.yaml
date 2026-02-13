@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: crossflow-agent
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/network
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false
+      # ── Set all of these in Render Dashboard → Environment ──
+      # DO NOT put real values here — this file goes to GitHub
+      - key: NETWORK
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AGENT_PRIVATE_KEY
+        sync: false
+      - key: AGENT_WALLET_ADDRESS
+        sync: false
+      - key: RPC_CELO
+        sync: false
+      - key: RPC_BASE
+        sync: false
+      - key: RPC_ETHEREUM
+        sync: false
+      - key: RPC_POLYGON
+        sync: false
+      - key: RPC_ARBITRUM
+        sync: false
+      - key: RPC_SOLANA
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: SERVICE_FEE_WALLET
+        sync: false
+      - key: PUBLIC_URL
+        sync: false

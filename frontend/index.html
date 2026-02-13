@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CrossFlow — Cross-Chain Transfer Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0a0c10;
+      --surface:   #111418;
+      --border:    rgba(255,255,255,0.07);
+      --accent:    #00e5a0;
+      --accent2:   #5b8cff;
+      --warn:      #ffb020;
+      --danger:    #ff4757;
+      --text:      #e8eaf0;
+      --muted:     #6b7280;
+      --celo:      #fcff52;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,12,16,0.95);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .chain-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(252,255,82,0.1);
+      border: 1px solid rgba(252,255,82,0.2);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      color: var(--celo);
+      letter-spacing: 0.5px;
+    }
+
+    .chain-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--celo);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .connect-btn {
+      padding: 7px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .connect-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Main Layout ───────────────────────────────── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ───────────────────────────────────── */
+    .sidebar {
+      width: 260px;
+      border-right: 1px solid var(--border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      overflow-y: auto;
+    }
+
+    .sidebar-section h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.65rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .quick-action {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      text-align: left;
+      cursor: pointer;
+      margin-bottom: 6px;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+
+    .quick-action:hover {
+      border-color: var(--accent);
+      background: rgba(0,229,160,0.05);
+      color: var(--accent);
+    }
+
+    .fee-widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .fee-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.72rem;
+    }
+
+    .fee-row:last-child { margin-bottom: 0; }
+
+    .fee-chain { color: var(--muted); }
+
+    .fee-val {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .alert-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .alert-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--warn);
+      border-radius: 50%;
+      margin-top: 3px;
+      flex-shrink: 0;
+      animation: pulse 1.5s infinite;
+    }
+
+    /* ── Chat Area ─────────────────────────────────── */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Message Bubbles ───────────────────────────── */
+    .msg {
+      display: flex;
+      gap: 12px;
+      max-width: 740px;
+      animation: fadeUp 0.3s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user { flex-direction: row-reverse; margin-left: auto; }
+
+    .msg-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .msg.agent .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .msg.user  .msg-avatar { background: var(--surface); border: 1px solid var(--border); }
+
+    .msg-content {
+      max-width: calc(100% - 44px);
+    }
+
+    .msg-bubble {
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .msg.agent .msg-bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top-left-radius: 2px;
+      color: var(--text);
+    }
+
+    .msg.user .msg-bubble {
+      background: linear-gradient(135deg, rgba(0,229,160,0.15), rgba(91,140,255,0.15));
+      border: 1px solid rgba(0,229,160,0.2);
+      border-top-right-radius: 2px;
+      color: var(--text);
+    }
+
+    .msg-time {
+      font-size: 0.62rem;
+      color: var(--muted);
+      margin-top: 5px;
+      padding: 0 4px;
+    }
+
+    .msg.user .msg-time { text-align: right; }
+
+    /* ── Confirmation Card ─────────────────────────── */
+    .confirm-card {
+      background: var(--surface);
+      border: 1px solid rgba(0,229,160,0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 10px;
+    }
+
+    .confirm-card h4 {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .confirm-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .confirm-row:last-of-type { border: none; }
+    .confirm-row .label { color: var(--muted); }
+    .confirm-row .value { color: var(--text); font-weight: 500; }
+
+    .confirm-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-confirm {
+      flex: 1;
+      padding: 10px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-confirm:hover { background: #00ffb2; }
+
+    .btn-cancel {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(255,71,87,0.3);
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel:hover { background: rgba(255,71,87,0.1); }
+
+    /* ── Warnings & Alerts ─────────────────────────── */
+    .warning-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      background: rgba(255,176,32,0.1);
+      border: 1px solid rgba(255,176,32,0.25);
+      border-radius: 5px;
+      font-size: 0.68rem;
+      color: var(--warn);
+      margin: 3px 2px;
+    }
+
+    .success-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      background: rgba(0,229,160,0.1);
+      border: 1px solid rgba(0,229,160,0.25);
+      border-radius: 5px;
+      font-size: 0.68rem;
+      color: var(--accent);
+    }
+
+    /* ── Bridge Comparison ─────────────────────────── */
+    .bridge-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+      margin-top: 10px;
+    }
+
+    .bridge-table th {
+      text-align: left;
+      padding: 6px 10px;
+      color: var(--muted);
+      font-weight: 400;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .bridge-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+
+    .bridge-table tr.best td { color: var(--accent); }
+    .bridge-best-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background: rgba(0,229,160,0.15);
+      border-radius: 4px;
+      font-size: 0.62rem;
+      color: var(--accent);
+    }
+
+    /* ── Thinking Indicator ─────────────────────────── */
+    .thinking {
+      display: flex;
+      gap: 4px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      border-top-left-radius: 2px;
+      width: fit-content;
+    }
+
+    .thinking-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Input Area ─────────────────────────────────── */
+    .input-area {
+      padding: 16px 32px 20px;
+      border-top: 1px solid var(--border);
+      background: rgba(10,12,16,0.97);
+    }
+
+    .input-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 16px;
+      transition: border-color 0.2s;
+    }
+
+    .input-wrapper:focus-within {
+      border-color: rgba(0,229,160,0.4);
+    }
+
+    #messageInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.85rem;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    #messageInput::placeholder { color: var(--muted); }
+
+    .send-btn {
+      width: 38px;
+      height: 38px;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .send-btn:hover { background: #00ffb2; transform: scale(1.05); }
+    .send-btn:disabled { background: var(--surface); cursor: not-allowed; opacity: 0.5; transform: none; }
+
+    .send-btn svg { width: 16px; height: 16px; fill: #000; }
+
+    .input-hint {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    /* ── Empty State ────────────────────────────────── */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 8px;
+      filter: drop-shadow(0 0 20px rgba(0,229,160,0.3));
+    }
+
+    .empty-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .empty-sub {
+      color: var(--muted);
+      font-size: 0.8rem;
+      max-width: 380px;
+      line-height: 1.6;
+    }
+
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 20px;
+      max-width: 500px;
+    }
+
+    .chip {
+      padding: 8px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text);
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0,229,160,0.05);
+    }
+
+    /* ── Notification Toast ─────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 90px;
+      right: 24px;
+      padding: 12px 18px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      font-size: 0.78rem;
+      color: var(--accent);
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ── Testnet badge ──────────────────────────────── */
+    .chain-pill.testnet {
+      background: rgba(255,176,32,0.15);
+      border-color: rgba(255,176,32,0.35);
+      color: var(--warn);
+    }
+    .chain-pill.testnet .chain-dot { background: var(--warn); }
+
+    .testnet-banner {
+      background: rgba(255,176,32,0.12);
+      border-bottom: 1px solid rgba(255,176,32,0.25);
+      color: var(--warn);
+      text-align: center;
+      padding: 6px 16px;
+      font-size: 0.7rem;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .messages { padding: 20px 16px; }
+      .input-area { padding: 12px 16px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Testnet banner (shown dynamically) ─────────── -->
+<div class="testnet-banner" id="testnetBanner" style="display:none">
+  ⚠️ TESTNET MODE — You are on Celo Alfajores. No real funds are at risk.
+</div>
+
+<!-- ── Header ─────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">Cross<span>Flow</span></div>
+  </div>
+  <div class="header-status">
+    <div class="chain-pill" id="networkBadge">
+      <div class="chain-dot"></div>
+      <span id="networkLabel">CELO</span>
+    </div>
+    <button class="connect-btn" onclick="connectWallet()">Connect Wallet</button>
+  </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>Quick Actions</h3>
+      <button class="quick-action" onclick="fillPrompt('Send 100 USDC to ')">
+        ↗ Send USDC cross-chain
+      </button>
+      <button class="quick-action" onclick="fillPrompt('Bridge 200 USDT from Celo to Base — cheapest route')">
+        🌉 Bridge to Base
+      </button>
+      <button class="quick-action" onclick="fillPrompt('Swap my USDm to USDC and send to ')">
+        🔄 Swap + Bridge
+      </button>
+      <button class="quick-action" onclick="fillPrompt('Alert me when fees drop below $0.50 on Base')">
+        🔔 Set fee alert
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Live Bridge Fees</h3>
+      <div class="fee-widget" id="feeWidget">
+        <div class="fee-row">
+          <span class="fee-chain">Celo → Base</span>
+          <span class="fee-val" id="fee-base">Loading…</span>
+        </div>
+        <div class="fee-row">
+          <span class="fee-chain">Celo → Ethereum</span>
+          <span class="fee-val" id="fee-eth">Loading…</span>
+        </div>
+        <div class="fee-row">
+          <span class="fee-chain">Celo → Polygon</span>
+          <span class="fee-val" id="fee-polygon">Loading…</span>
+        </div>
+        <div class="fee-row">
+          <span class="fee-chain">Celo → Arbitrum</span>
+          <span class="fee-val" id="fee-arb">Loading…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Active Alerts</h3>
+      <div id="alertsList">
+        <div style="font-size:0.72rem; color:var(--muted);">No active alerts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⚡</div>
+        <div class="empty-title">CrossFlow Agent</div>
+        <div class="empty-sub">
+          Send stablecoins across any blockchain using plain English.
+          No manual bridge selection. No guesswork.
+        </div>
+        <div class="example-chips">
+          <div class="chip" onclick="sendQuick('Send 100 USDT to 7xB2mKL9qQ3R4vX5wZ6nP8tS1uA2bC3dE4fG5h')">
+            Send to Solana wallet
+          </div>
+          <div class="chip" onclick="sendQuick('Move 250 USDC from Celo to Base cheapest way')">
+            Bridge to Base cheaply
+          </div>
+          <div class="chip" onclick="sendQuick('Swap my 500 USDm to USDC and bridge to 0xA1B2C3D4E5F678901234567890abcdef12345678 on Arbitrum')">
+            Swap + Bridge
+          </div>
+          <div class="chip" onclick="sendQuick('Alert me if fees to Base drop below $0.80')">
+            Set fee alert
+          </div>
+          <div class="chip" onclick="sendQuick('What are the current bridge fees to Ethereum?')">
+            Check fees
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea
+          id="messageInput"
+          rows="1"
+          placeholder="Send 100 USDT to 0x... or 7xB2... (Solana) — I'll handle the rest"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">
+        Press Enter to send · Shift+Enter for new line · Connected to Celo
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────
+  const SESSION_ID    = 'session_' + Math.random().toString(36).slice(2, 9);
+  let   walletInfo    = {};
+  let   awaitingConfirm = false;
+  let   pendingTxData   = null;
+
+  // ── WalletConnect / MiniPay Integration ──────────────────────────
+  // 🔑 WALLETCONNECT_PROJECT_ID — inject from config/keys.js server-side
+  // OR pass it directly here if building standalone:
+  // const WALLETCONNECT_PROJECT_ID = "YOUR_PROJECT_ID_HERE";
+  async function connectWallet() {
+    if (typeof window.ethereum !== 'undefined') {
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const chainId  = await window.ethereum.request({ method: 'eth_chainId' });
+        walletInfo = { address: accounts[0], chainId: parseInt(chainId, 16) };
+        document.querySelector('.connect-btn').textContent = accounts[0].slice(0,6) + '...' + accounts[0].slice(-4);
+        document.querySelector('.connect-btn').style.borderColor = 'var(--accent)';
+        document.querySelector('.connect-btn').style.color       = 'var(--accent)';
+        showToast('✅ Wallet connected: ' + accounts[0].slice(0,8) + '...');
+      } catch (err) {
+        showToast('❌ Wallet connection failed');
+      }
+    } else {
+      showToast('No wallet detected. Install MetaMask or MiniPay.');
+    }
+  }
+
+  // ── Send Message ──────────────────────────────────────────────────
+  async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text  = input.value.trim();
+    if (!text) return;
+
+    // Clear input
+    input.value = '';
+    autoResize(input);
+    document.getElementById('emptyState')?.remove();
+
+    // Add user message
+    appendMessage('user', text);
+
+    // Show thinking
+    const thinkingId = showThinking();
+    setSendDisabled(true);
+
+    try {
+      const res = await fetch('/api/message', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ sessionId: SESSION_ID, message: text, walletInfo }),
+      });
+
+      const data = await res.json();
+      removeThinking(thinkingId);
+
+      // Handle response
+      if (data.state === 'awaiting_confirmation' && data.data) {
+        appendAgentMessageWithCard(data.message, data.data);
+        awaitingConfirm = true;
+        pendingTxData   = data.data;
+      } else if (data.state === 'idle' && data.data?.receipt) {
+        appendSuccessMessage(data.message, data.data.receipt);
+        awaitingConfirm = false;
+      } else {
+        appendMessage('agent', data.message || data.error || 'Something went wrong.');
+        awaitingConfirm = false;
+      }
+
+      // Update sidebar alerts if new ones added
+      if (data.data?.alertId) {
+        addAlertToSidebar(data.data.alert);
+      }
+
+    } catch (err) {
+      removeThinking(thinkingId);
+      appendMessage('agent', '❌ Connection error. Is the server running? (`node server.js`)');
+    }
+
+    setSendDisabled(false);
+  }
+
+  function sendQuick(text) {
+    document.getElementById('messageInput').value = text;
+    sendMessage();
+  }
+
+  function fillPrompt(text) {
+    const input = document.getElementById('messageInput');
+    input.value = text;
+    input.focus();
+    autoResize(input);
+  }
+
+  // ── Message Rendering ─────────────────────────────────────────────
+  function appendMessage(role, text) {
+    const container = document.getElementById('messages');
+    const time      = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const avatar    = role === 'agent' ? '⚡' : '👤';
+    const isAgent   = role === 'agent';
+
+    const el = document.createElement('div');
+    el.className = `msg ${role}`;
+    el.innerHTML = `
+      <div class="msg-avatar">${avatar}</div>
+      <div class="msg-content">
+        <div class="msg-bubble">${escapeHtml(text)}</div>
+        <div class="msg-time">${time}</div>
+      </div>
+    `;
+    container.appendChild(el);
+    scrollToBottom();
+    return el;
+  }
+
+  function appendAgentMessageWithCard(text, data) {
+    const container = document.getElementById('messages');
+    const time      = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const bridge    = data.bestBridge;
+    const chain     = data.chainDetected;
+    const altRoutes = data.alternativeRoutes || [];
+    const validation = data.validation || {};
+
+    let warningHtml = '';
+    if (validation.warnings?.length > 0) {
+      warningHtml = validation.warnings.map(w =>
+        `<div class="warning-tag">⚠️ ${escapeHtml(w)}</div>`
+      ).join('');
+    }
+
+    let altHtml = '';
+    if (altRoutes.length > 0) {
+      altHtml = `
+        <table class="bridge-table" style="margin-top:12px">
+          <tr><th>Bridge</th><th>Fee</th><th>Time</th><th>Success</th></tr>
+          ${altRoutes.slice(0,3).map(r => `
+            <tr>
+              <td>${escapeHtml(r.bridge || '')}</td>
+              <td>$${r.feeUSD?.toFixed(2) || '?'}</td>
+              <td>${r.estimatedMinutes || '?'}m</td>
+              <td>${((r.successRate || 0) * 100).toFixed(0)}%</td>
+            </tr>`).join('')}
+        </table>
+      `;
+    }
+
+    const el = document.createElement('div');
+    el.className = 'msg agent';
+    el.innerHTML = `
+      <div class="msg-avatar">⚡</div>
+      <div class="msg-content">
+        <div class="msg-bubble">${escapeHtml(text)}
+          ${warningHtml}
+          ${bridge ? `
+          <div class="confirm-card">
+            <h4>Transaction Preview</h4>
+            <div class="confirm-row"><span class="label">Destination Chain</span><span class="value">${escapeHtml(chain || '?')}</span></div>
+            <div class="confirm-row"><span class="label">Bridge</span><span class="value">${escapeHtml(bridge.bridge || '')} <span class="bridge-best-badge">BEST</span></span></div>
+            <div class="confirm-row"><span class="label">Fee</span><span class="value">$${bridge.feeUSD?.toFixed(2) || '?'}</span></div>
+            <div class="confirm-row"><span class="label">Estimated Time</span><span class="value">${bridge.estimatedMinutes || '?'} minutes</span></div>
+            <div class="confirm-row"><span class="label">Success Rate</span><span class="value">${((bridge.successRate || 0) * 100).toFixed(0)}%</span></div>
+            ${altHtml}
+            <div class="confirm-actions">
+              <button class="btn-confirm" onclick="confirmTx()">✓ Confirm Transfer</button>
+              <button class="btn-cancel"  onclick="cancelTx()">✕ Cancel</button>
+            </div>
+          </div>` : ''}
+        </div>
+        <div class="msg-time">${time}</div>
+      </div>
+    `;
+    container.appendChild(el);
+    scrollToBottom();
+  }
+
+  function appendSuccessMessage(text, receipt) {
+    const container = document.getElementById('messages');
+    const time      = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const el = document.createElement('div');
+    el.className = 'msg agent';
+    el.innerHTML = `
+      <div class="msg-avatar">⚡</div>
+      <div class="msg-content">
+        <div class="msg-bubble" style="border-color:rgba(0,229,160,0.3)">
+          ${escapeHtml(text)}
+          ${receipt?.txHash ? `
+          <div style="margin-top:12px">
+            <a href="${escapeHtml(receipt.explorerLink || '#')}" target="_blank"
+               style="color:var(--accent); text-decoration:none; font-size:0.75rem;">
+              🔗 View on Explorer →
+            </a>
+          </div>` : ''}
+        </div>
+        <div class="msg-time">${time}</div>
+      </div>
+    `;
+    container.appendChild(el);
+    scrollToBottom();
+  }
+
+  // ── Confirm / Cancel ──────────────────────────────────────────────
+  async function confirmTx() {
+    awaitingConfirm = false;
+    document.querySelectorAll('.confirm-actions').forEach(el => {
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.75rem">⏳ Executing transaction…</div>';
+    });
+    await sendMessageText('yes');
+  }
+
+  async function cancelTx() {
+    awaitingConfirm = false;
+    document.querySelectorAll('.confirm-actions').forEach(el => {
+      el.innerHTML = '<div style="color:var(--danger);font-size:0.75rem">Transaction cancelled.</div>';
+    });
+    await sendMessageText('no');
+  }
+
+  async function sendMessageText(text) {
+    const thinkingId = showThinking();
+    setSendDisabled(true);
+    try {
+      const res  = await fetch('/api/message', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ sessionId: SESSION_ID, message: text, walletInfo }),
+      });
+      const data = await res.json();
+      removeThinking(thinkingId);
+      if (data.data?.receipt) {
+        appendSuccessMessage(data.message, data.data.receipt);
+      } else {
+        appendMessage('agent', data.message || '');
+      }
+    } catch (err) {
+      removeThinking(thinkingId);
+      appendMessage('agent', '❌ Connection error.');
+    }
+    setSendDisabled(false);
+  }
+
+  // ── Thinking Indicator ─────────────────────────────────────────────
+  let thinkingCounter = 0;
+  function showThinking() {
+    const id = 'thinking_' + (++thinkingCounter);
+    const container = document.getElementById('messages');
+    const el = document.createElement('div');
+    el.id = id;
+    el.className = 'msg agent';
+    el.innerHTML = `
+      <div class="msg-avatar">⚡</div>
+      <div class="msg-content">
+        <div class="thinking">
+          <div class="thinking-dot"></div>
+          <div class="thinking-dot"></div>
+          <div class="thinking-dot"></div>
+        </div>
+      </div>
+    `;
+    container.appendChild(el);
+    scrollToBottom();
+    return id;
+  }
+
+  function removeThinking(id) {
+    document.getElementById(id)?.remove();
+  }
+
+  // ── Sidebar Updates ───────────────────────────────────────────────
+  function addAlertToSidebar(alert) {
+    const list = document.getElementById('alertsList');
+    if (list.children[0]?.style.color === 'var(--muted)') list.innerHTML = '';
+    const el = document.createElement('div');
+    el.className = 'alert-item';
+    el.innerHTML = `
+      <div class="alert-dot"></div>
+      <div>${alert.condition} ${alert.threshold ? '< $' + alert.threshold : ''} on ${alert.targetChain || '?'}</div>
+    `;
+    list.appendChild(el);
+  }
+
+  // Load live fees from API
+  async function loadFees() {
+    const routes = [
+      { id: 'fee-base',    toChain: 'base'     },
+      { id: 'fee-eth',     toChain: 'ethereum' },
+      { id: 'fee-polygon', toChain: 'polygon'  },
+      { id: 'fee-arb',     toChain: 'arbitrum' },
+    ];
+
+    for (const route of routes) {
+      try {
+        const res  = await fetch(`/api/fees?fromChain=celo&toChain=${route.toChain}&token=USDC&amount=100`);
+        const data = await res.json();
+        const el   = document.getElementById(route.id);
+        if (el && data.minFeeUSD !== null) {
+          el.textContent = '$' + data.minFeeUSD.toFixed(2);
+        } else if (el) {
+          el.textContent = 'N/A';
+        }
+      } catch {
+        const el = document.getElementById(route.id);
+        if (el) el.textContent = '—';
+      }
+    }
+  }
+
+  // ── Utility ───────────────────────────────────────────────────────
+  function scrollToBottom() {
+    const m = document.getElementById('messages');
+    m.scrollTop = m.scrollHeight;
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function setSendDisabled(disabled) {
+    document.getElementById('sendBtn').disabled = disabled;
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3500);
+  }
+
+  // ── WebSocket for real-time alerts ────────────────────────────────
+  // Uses socket.io — loaded from CDN in production
+  // To enable: add <script src="/socket.io/socket.io.js"></script>
+  // and uncomment below:
+  /*
+  const socket = io();
+  socket.emit('join_session', SESSION_ID);
+  socket.on('alert_triggered', (data) => {
+    showToast('🔔 ' + data.message);
+    appendMessage('agent', data.message);
+  });
+  */
+
+  // ── Network badge — reads NETWORK from server config ────────────
+  async function initNetworkBadge() {
+    try {
+      const res  = await fetch('/api/network');
+      const data = await res.json();
+      const isTestnet = data.network === 'testnet';
+      const badge = document.getElementById('networkBadge');
+      const label = document.getElementById('networkLabel');
+      const banner = document.getElementById('testnetBanner');
+
+      if (isTestnet) {
+        badge.classList.add('testnet');
+        label.textContent = 'CELO ALFAJORES (TESTNET)';
+        banner.style.display = 'block';
+        // Update page title too
+        document.title = '[TESTNET] CrossFlow Agent';
+      } else {
+        label.textContent = 'CELO MAINNET';
+      }
+    } catch {
+      // If endpoint not available, default to showing CELO
+      document.getElementById('networkLabel').textContent = 'CELO';
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────
+  initNetworkBadge();
+  loadFees();
+  setInterval(loadFees, 60000); // Refresh every minute
+</script>
+</body>
+</html>
