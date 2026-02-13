@@ -174,7 +174,7 @@ module.exports = {
     PORT:        parseInt(env.PORT) || 3000,
     // Render sets PORT automatically — do not hardcode it
     CORS_ORIGIN: env.CORS_ORIGIN || "*",
-    PUBLIC_URL:  env.PUBLIC_URL  || "YOUR_PUBLIC_HTTPS_URL_HERE",
+    PUBLIC_URL:  env.PUBLIC_URL  || "https://osherai.onrender.com",
     // Render gives you a URL like: https://crossflow-agent.onrender.com
     // Set PUBLIC_URL to that value after your first deploy
   },
