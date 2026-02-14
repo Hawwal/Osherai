@@ -84,10 +84,12 @@ TYPE 3 — Swap + Transfer:
 TYPE 4 — Query:
 {
   "type": "query",
-  "queryType": "fee_check",
-  "token": "USDT",
-  "chain": "base"
+  "queryType": "fee_check" | "balance_check" | "price_check",
+  "token": "USDT" | "all",
+  "chain": "base" | "celo"
 }
+Examples of balance queries: "show my balance", "my balance", "what do I have", "how much USDT do I have"
+For balance queries always use queryType: "balance_check" and chain: "celo"
 
 TYPE 5 — Needs clarification (ONLY if both address AND amount are truly missing):
 {
@@ -185,6 +187,19 @@ function localParseIntent(message) {
       targetChain: chainMatch?.[1] || "base",
       action:      "notify",
       transferDetails: null,
+    };
+  }
+
+  // Balance query intent — catch BEFORE fee check
+  const balanceWords = ["balance", "wallet balance", "how much do i have", "my funds",
+                        "my usdt", "my usdc", "my tokens", "my celo", "what do i have",
+                        "show balance", "check balance", "how much have i got"];
+  if (balanceWords.some(w => msg.includes(w))) {
+    return {
+      type:      "query",
+      queryType: "balance_check",
+      token:     extractToken(msg) || "all",
+      chain:     "celo",
     };
   }
 

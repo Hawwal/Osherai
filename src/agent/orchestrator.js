@@ -329,9 +329,34 @@ async function executeTransfer(session) {
 
   } catch (error) {
     session.state = "idle";
-    const explanation = await explainError("execution_failed", { error: error.message, intent });
+    console.error("[Orchestrator] Transfer execution error:", error.message);
+
+    // Map common errors to plain-English reasons
+    let reason = error.message || "Unknown error";
+    let suggestion = "Please try again in a moment.";
+
+    if (reason.toLowerCase().includes("insufficient") || reason.toLowerCase().includes("exceeds balance")) {
+      reason = "Your wallet doesn't have enough " + intent.token + " to cover this transfer plus the gas fee.";
+      suggestion = "Check your balance (say 'show my balance') and make sure you have extra CELO for gas fees too.";
+    } else if (reason.toLowerCase().includes("allowance") || reason.toLowerCase().includes("approve")) {
+      reason = "The bridge wasn't approved to spend your " + intent.token + ".";
+      suggestion = "This usually resolves itself on retry. Try sending again.";
+    } else if (reason.toLowerCase().includes("gas") || reason.toLowerCase().includes("fee")) {
+      reason = "There wasn't enough CELO in your wallet to pay the network gas fee.";
+      suggestion = "Add some CELO to your wallet to cover gas. Even 0.1 CELO is usually enough.";
+    } else if (reason.toLowerCase().includes("nonce")) {
+      reason = "A transaction ordering conflict occurred.";
+      suggestion = "Wait 30 seconds and try again.";
+    } else if (reason.toLowerCase().includes("revert") || reason.toLowerCase().includes("execution reverted")) {
+      reason = "The bridge contract rejected the transaction. This can happen if the bridge has low liquidity or the amount is below its minimum.";
+      suggestion = "Try a different amount, or ask me to use a different bridge.";
+    } else if (reason.toLowerCase().includes("network") || reason.toLowerCase().includes("timeout") || reason.toLowerCase().includes("rpc")) {
+      reason = "The connection to the blockchain timed out.";
+      suggestion = "The network may be congested. Try again in a minute.";
+    }
+
     return {
-      message: `❌ Transfer failed: ${explanation}`,
+      message: "❌ Transfer failed: " + reason + " " + suggestion,
       state:   "error",
       data:    { error: error.message },
     };
@@ -387,33 +412,115 @@ async function registerAlert(session, intent) {
 }
 
 /**
- * Handles information queries (fee check, price check, etc.)
+ * Handles information queries (fee check, balance check, price check)
  */
 async function handleQuery(session, intent) {
+
+  // ── Balance check ───────────────────────────────────────────────
+  if (intent.queryType === "balance_check") {
+    try {
+      const { ethers } = require("ethers");
+      const rpcUrl    = config.RPC["CELO"];
+      const provider  = new ethers.JsonRpcProvider(rpcUrl);
+      const address   = session.walletAddress || config.AGENT_WALLET_ADDRESS;
+
+      if (!address || address === "YOUR_WALLET_ADDRESS_HERE") {
+        return {
+          message: "I don't have a wallet address on file yet. Please connect your wallet first, or set AGENT_WALLET_ADDRESS in your config.",
+          state: "idle",
+        };
+      }
+
+      const ERC20_ABI = [
+        "function balanceOf(address) view returns (uint256)",
+        "function decimals() view returns (uint8)",
+        "function symbol() view returns (string)",
+      ];
+
+      const tokens = config.TOKENS.CELO;
+      const balances = [];
+
+      // Check native CELO balance
+      const celoWei = await provider.getBalance(address);
+      const celoBalance = parseFloat(ethers.formatEther(celoWei));
+      if (celoBalance > 0.001) {
+        balances.push({ symbol: "CELO", amount: celoBalance.toFixed(4) });
+      }
+
+      // Check each ERC-20 token
+      const tokenNames = intent.token && intent.token !== "all"
+        ? [intent.token]
+        : ["USDC", "USDT", "USDm"];
+
+      for (const name of tokenNames) {
+        const addr = tokens[name];
+        if (!addr) continue;
+        try {
+          const contract  = new ethers.Contract(addr, ERC20_ABI, provider);
+          const [raw, dec] = await Promise.all([contract.balanceOf(address), contract.decimals()]);
+          const amount    = parseFloat(ethers.formatUnits(raw, dec));
+          if (amount > 0.001) {
+            balances.push({ symbol: name, amount: amount.toFixed(2) });
+          }
+        } catch { /* token may not exist on testnet */ }
+      }
+
+      const network = config.NETWORK === "testnet" ? "Celo Alfajores (testnet)" : "Celo";
+      const shortAddr = address.slice(0, 6) + "..." + address.slice(-4);
+
+      if (balances.length === 0) {
+        return {
+          message: "Your wallet (" + shortAddr + ") on " + network + " has no tokens yet. If you're on testnet, get free CELO from https://faucet.celo.org/alfajores",
+          state: "idle",
+        };
+      }
+
+      const balanceLines = balances.map(b => "• " + b.symbol + ": " + b.amount).join("\n");
+      return {
+        message: "Here's your balance on " + network + " (" + shortAddr + "):\n\n" + balanceLines + "\n\nThese are the funds available in your agent wallet. Need to send any of them somewhere?",
+        state: "idle",
+      };
+
+    } catch (err) {
+      console.error("[Query] Balance check failed:", err.message);
+      return {
+        message: "I had trouble fetching your balance right now — the RPC might be temporarily slow. Try again in a moment.",
+        state: "idle",
+      };
+    }
+  }
+
+  // ── Fee check ───────────────────────────────────────────────────
   if (intent.queryType === "fee_check") {
-    const { best } = await getBestBridgeRoute({
+    const { best, all } = await getBestBridgeRoute({
       fromChain: "celo",
       toChain:   intent.chain,
       token:     intent.token,
-      amount:    100, // Estimate for 100 units
+      amount:    100,
       priority:  "cheapest",
     });
 
     if (!best) {
       return {
-        message: `No bridge route found for ${intent.token} to ${intent.chain}.`,
+        message: "I couldn't find a bridge route for " + intent.token + " to " + intent.chain + " right now. This route may not be supported.",
         state: "idle",
       };
     }
 
+    const otherRoutes = all.slice(1).map(q =>
+      "  • " + q.bridge + ": $" + q.feeUSD.toFixed(2) + " (~" + q.estimatedMinutes + " min)"
+    ).join("\n");
+
     return {
-      message: `Current estimated fees for ${intent.token} → ${intent.chain}:\n\n🏆 Best: **${best.bridge}** — $${best.feeUSD.toFixed(2)} (~${best.estimatedMinutes} min)\n\n_Fees vary based on network congestion._`,
+      message: "Current bridge fees for " + intent.token + " → " + intent.chain + ":\n\n🏆 Best: " + best.bridge + " — $" + best.feeUSD.toFixed(2) + " (~" + best.estimatedMinutes + " min)" +
+        (otherRoutes ? "\n\nOther options:\n" + otherRoutes : "") +
+        "\n\nFees vary with network congestion. Want me to send a transfer?",
       state: "idle",
     };
   }
 
   return {
-    message: "I can check fees, prices, and balances. What would you like to know?",
+    message: "I can help you check your wallet balance, bridge fees, or token prices. What would you like to know?",
     state: "idle",
   };
 }
