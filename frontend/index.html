@@ -1096,8 +1096,8 @@
 
   // ── WebSocket for real-time alerts ────────────────────────────────
   // Uses socket.io — loaded from CDN in production
-  // To enable: add <script src="/socket.io/socket.io.js"></script>
-  // and uncomment below:
+  // To enable: add a script tag loading /socket.io/socket.io.js
+  // then uncomment below:
   /*
   const socket = io();
   socket.emit('join_session', SESSION_ID);
@@ -1107,7 +1107,7 @@
   });
   */
 
-  // ── Network badge — reads from server, with reliable fallback ───
+  // ── Network badge — reads from server, with reliable fallback ────
   async function initNetworkBadge() {
     const badge  = document.getElementById('networkBadge');
     const label  = document.getElementById('networkLabel');
@@ -1131,24 +1131,19 @@
       if (!res.ok) throw new Error('no response');
       const data = await res.json();
 
-      // Trust the server NETWORK flag first
       if (data.network === 'testnet' || data.chainId === 44787) {
         applyTestnet();
       } else if (data.network === 'mainnet' || data.chainId === 42220) {
         applyMainnet();
       } else {
-        // Fallback: if RPC contains "alfajores" it is testnet
         const rpc = data.rpc || '';
         rpc.includes('alfajores') ? applyTestnet() : applyMainnet();
       }
     } catch {
-      // Server unreachable — read hostname as last resort
       const host = window.location.hostname;
       if (host === 'localhost' || host === '127.0.0.1') {
-        // Local dev: assume testnet for safety
         applyTestnet();
       } else {
-        // Live server but /api/network failed — show neutral state
         label.textContent = 'CELO';
       }
     }
