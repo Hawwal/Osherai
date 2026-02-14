@@ -168,6 +168,24 @@ I can currently bridge to: Base, Ethereum, Polygon, and Arbitrum. Would you like
     };
   }
 
+  // Step 3b: Warn hard-stop if fee is more than 25% of transfer amount
+  const feeRatio = bridgeQuote.feeUSD / amount;
+  if (feeRatio > 0.25) {
+    const feePercent = (feeRatio * 100).toFixed(0);
+    return {
+      message: `⚠️ I found a route via ${bridgeQuote.bridge}, but the fee is $${bridgeQuote.feeUSD.toFixed(2)} — that's ${feePercent}% of your $${amount} transfer.
+
+This is too high to proceed automatically. You have two options:
+
+1. **Send a larger amount** — fees are fixed, so a bigger transfer makes them worthwhile. For example, sending $${Math.ceil(bridgeQuote.feeUSD / 0.01)} would bring the fee below 1%.
+2. **Wait and try later** — bridge fees drop during low network congestion.
+
+Would you like to adjust the amount and try again?`,
+      state: "idle",
+      data:  { bridgeQuote, feeRatio },
+    };
+  }
+
   // Step 4: Generate preview for user confirmation
   const preview = await generateTransactionPreview(
     { ...intent, toChain, detectedChain: chainInfo },
