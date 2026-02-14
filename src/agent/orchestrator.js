@@ -127,25 +127,13 @@ async function processTransfer(session, intent) {
     const isSolana = toChain === "solana";
     if (isSolana) {
       return {
-        message: `I can find routes from Celo to Solana, but the Wormhole bridge SDK isn't installed on the server yet — so I can't execute Solana transfers right now.
-
-To enable it, run this in your project folder:
-\`\`\`
-npm install @wormhole-foundation/sdk @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana
-\`\`\`
-
-For now, I can transfer ${token} to any EVM chain (Base, Ethereum, Polygon, Arbitrum) using Axelar or Celer. Want to try one of those instead?`,
+        message: "I can find routes from Celo to Solana, but the Wormhole bridge SDK needs to be installed on the server. Run: pnpm add @wormhole-foundation/sdk @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana — then redeploy. For now, I can transfer " + token + " to any EVM chain (Base, Ethereum, Polygon, Arbitrum) using Axelar or Celer. Want to try one of those instead?",
         state: "idle",
         data:  { bridgeWarnings },
       };
     }
     return {
-      message: `I couldn't find a working bridge route for ${token} from Celo to ${toChain} right now.
-
-${bridgeWarnings.join("
-") || "This route may not be supported yet."}
-
-I can currently bridge to: Base, Ethereum, Polygon, and Arbitrum. Would you like to try one of those?`,
+      message: "I couldn't find a working bridge route for " + token + " from Celo to " + toChain + " right now. " + (bridgeWarnings.join(" ") || "This route may not be supported yet.") + " I can currently bridge to: Base, Ethereum, Polygon, and Arbitrum. Would you like to try one of those?",
       state: "idle",
       data:  { bridgeWarnings },
     };
