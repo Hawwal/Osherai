@@ -121,6 +121,36 @@ async function processTransfer(session, intent) {
   const { best: bridgeQuote, all: allQuotes, warnings: bridgeWarnings } =
     await getBestBridgeRoute({ fromChain, toChain, token, amount, priority });
 
+  // Step 2b: Check if any executable bridge was found
+  if (!bridgeQuote) {
+    // Check if it's a Solana route with Wormhole not yet installed
+    const isSolana = toChain === "solana";
+    if (isSolana) {
+      return {
+        message: `I can find routes from Celo to Solana, but the Wormhole bridge SDK isn't installed on the server yet — so I can't execute Solana transfers right now.
+
+To enable it, run this in your project folder:
+\`\`\`
+npm install @wormhole-foundation/sdk @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana
+\`\`\`
+
+For now, I can transfer ${token} to any EVM chain (Base, Ethereum, Polygon, Arbitrum) using Axelar or Celer. Want to try one of those instead?`,
+        state: "idle",
+        data:  { bridgeWarnings },
+      };
+    }
+    return {
+      message: `I couldn't find a working bridge route for ${token} from Celo to ${toChain} right now.
+
+${bridgeWarnings.join("
+") || "This route may not be supported yet."}
+
+I can currently bridge to: Base, Ethereum, Polygon, and Arbitrum. Would you like to try one of those?`,
+      state: "idle",
+      data:  { bridgeWarnings },
+    };
+  }
+
   // Step 3: Validate
   const validation = await validateTransfer({ ...intent, toChain }, bridgeQuote);
 
@@ -464,9 +494,8 @@ async function executeCelerTransfer({ wallet, intent, bridgeQuote, amountUnits, 
 }
 
 async function executeLayerZeroTransfer({ wallet, intent, bridgeQuote, amountUnits, tokenAddress }) {
-  // 🔑 SDK: npm install @layerzerolabs/stargate-sdk
-  // See: https://stargateprotocol.gitbook.io/stargate/developers
-  throw new Error("LayerZero execution: Install @layerzerolabs/stargate-sdk and implement. See comments.");
+  const { executeLayerZeroTransfer: run } = require("../bridges/layerzero");
+  return await run({ wallet, intent, bridgeQuote, amountUnits, tokenAddress });
 }
 
 // ── Utility Helpers ───────────────────────────────────────────

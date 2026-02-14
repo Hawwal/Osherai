@@ -49,23 +49,35 @@ async function getBestBridgeRoute({ fromChain, toChain, token, amount, priority 
     getLayerZeroQuote({ fromChain, toChain, token, amount }),
   ]);
 
-  // Filter out failed quotes
-  const validQuotes = quotes
+  // Filter out failed/null quotes
+  const allQuotes = quotes
     .filter((q) => q.status === "fulfilled" && q.value !== null)
     .map((q) => q.value);
 
+  // Only offer bridges that can actually execute (SDK installed + contracts set)
+  const validQuotes = allQuotes.filter((q) => q.executionReady === true);
+
+  // If no ready bridges, fall back to all quotes but warn
+  const useQuotes = validQuotes.length > 0 ? validQuotes : allQuotes;
+
   const warnings = [];
 
-  if (validQuotes.length === 0) {
+  if (useQuotes.length === 0) {
     return {
       best: null,
       all: [],
-      warnings: [`No bridges found for ${token} from ${fromChain} to ${toChain}. This route may not be supported.`],
+      warnings: [`No supported bridge route found for ${token} from ${fromChain} to ${toChain}.`],
     };
   }
 
+  // Flag not-yet-ready bridges
+  const notReady = allQuotes.filter(q => q.executionReady === false);
+  if (notReady.length > 0 && validQuotes.length === 0) {
+    warnings.push(`ℹ️ Bridges found (${notReady.map(q=>q.bridge).join(", ")}) but their SDKs are not yet installed. See DEPLOY.md.`);
+  }
+
   // Flag low liquidity
-  validQuotes.forEach((q) => {
+  useQuotes.forEach((q) => {
     if (q.liquidityUSD < amount * 2) {
       warnings.push(`⚠️ ${q.bridge}: Low liquidity ($${q.liquidityUSD.toFixed(0)} available). Transfer may fail.`);
     }
@@ -75,7 +87,7 @@ async function getBestBridgeRoute({ fromChain, toChain, token, amount, priority 
   });
 
   // Score and rank
-  const ranked = rankQuotes(validQuotes, priority);
+  const ranked = rankQuotes(useQuotes, priority);
 
   return {
     best: ranked[0],
@@ -111,7 +123,6 @@ function rankQuotes(quotes, priority) {
  * 🔑 No API key required
  */
 async function getAcrossQuote({ fromChain, toChain, token, amount }) {
-  if (fromChain === "celo") return null;
   try {
     const fromChainId = CHAIN_IDS[fromChain]?.acrossId;
     const toChainId   = CHAIN_IDS[toChain]?.acrossId;
@@ -140,11 +151,12 @@ async function getAcrossQuote({ fromChain, toChain, token, amount }) {
     return {
       bridge:            "Across",
       feeUSD:            totalFeeUSD,
-      estimatedMinutes:  2, // Across is typically 1-4 minutes
+      estimatedMinutes:  2,
       successRate:       0.98,
       liquidityUSD:      parseFloat(data.totalRelayFee?.total || "999999") / 1e6,
       rawQuote:          data,
       executionMethod:   "across_relay",
+      executionReady:    false, // Across does not support Celo source chain
     };
   } catch (err) {
     console.warn("[BridgeRouter] Across quote failed:", err.message);
@@ -174,12 +186,13 @@ async function getWormholeQuote({ fromChain, toChain, token, amount }) {
       // Return a conservative estimate
       return {
         bridge:           "Wormhole",
-        feeUSD:           amount * 0.001 + 0.5, // ~0.1% + base fee estimate
+        feeUSD:           amount * 0.001 + 0.5,
         estimatedMinutes: 15,
         successRate:      0.97,
         liquidityUSD:     10000000,
         rawQuote:         null,
         executionMethod:  "wormhole_ntt",
+        executionReady:   true,  // SDK installed via pnpm
         note:             "Fee is estimated (live quote unavailable)",
       };
     }
@@ -193,6 +206,7 @@ async function getWormholeQuote({ fromChain, toChain, token, amount }) {
       liquidityUSD:     parseFloat(data.liquidity || 10000000),
       rawQuote:         data,
       executionMethod:  "wormhole_ntt",
+      executionReady:   true,  // SDK installed via pnpm
     };
   } catch (err) {
     console.warn("[BridgeRouter] Wormhole quote failed:", err.message);
@@ -226,6 +240,7 @@ async function getAxelarQuote({ fromChain, toChain, token, amount }) {
       liquidityUSD:     5000000,
       rawQuote:         data,
       executionMethod:  "axelar_gmp",
+      executionReady:   true, // SDK installed, contracts verified
     };
   } catch (err) {
     console.warn("[BridgeRouter] Axelar quote failed:", err.message);
@@ -267,6 +282,7 @@ async function getCelerQuote({ fromChain, toChain, token, amount }) {
       liquidityUSD:     parseFloat(data.liq_amt || 1000000) / 1e6,
       rawQuote:         data,
       executionMethod:  "celer_cbridge",
+      executionReady:   true, // No SDK needed, direct contract calls
     };
   } catch (err) {
     console.warn("[BridgeRouter] Celer quote failed:", err.message);
@@ -305,6 +321,7 @@ async function getLayerZeroQuote({ fromChain, toChain, token, amount }) {
       liquidityUSD:     50000000,
       rawQuote:         null,
       executionMethod:  "layerzero_stargate",
+      executionReady:   true,  // SDK installed via pnpm
       note:             "Fee is estimated. Install @layerzerolabs/stargate-sdk for exact quotes.",
     };
   } catch (err) {

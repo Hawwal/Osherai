@@ -1107,28 +1107,50 @@
   });
   */
 
-  // ── Network badge — reads NETWORK from server config ────────────
+  // ── Network badge — reads from server, with reliable fallback ───
   async function initNetworkBadge() {
+    const badge  = document.getElementById('networkBadge');
+    const label  = document.getElementById('networkLabel');
+    const banner = document.getElementById('testnetBanner');
+
+    function applyTestnet() {
+      badge.classList.add('testnet');
+      label.textContent = 'CELO ALFAJORES (TESTNET)';
+      banner.style.display = 'block';
+      document.title = '[TESTNET] CrossFlow Agent';
+    }
+
+    function applyMainnet() {
+      badge.classList.remove('testnet');
+      label.textContent = 'CELO MAINNET';
+      banner.style.display = 'none';
+    }
+
     try {
       const res  = await fetch('/api/network');
+      if (!res.ok) throw new Error('no response');
       const data = await res.json();
-      const isTestnet = data.network === 'testnet';
-      const badge = document.getElementById('networkBadge');
-      const label = document.getElementById('networkLabel');
-      const banner = document.getElementById('testnetBanner');
 
-      if (isTestnet) {
-        badge.classList.add('testnet');
-        label.textContent = 'CELO ALFAJORES (TESTNET)';
-        banner.style.display = 'block';
-        // Update page title too
-        document.title = '[TESTNET] CrossFlow Agent';
+      // Trust the server NETWORK flag first
+      if (data.network === 'testnet' || data.chainId === 44787) {
+        applyTestnet();
+      } else if (data.network === 'mainnet' || data.chainId === 42220) {
+        applyMainnet();
       } else {
-        label.textContent = 'CELO MAINNET';
+        // Fallback: if RPC contains "alfajores" it is testnet
+        const rpc = data.rpc || '';
+        rpc.includes('alfajores') ? applyTestnet() : applyMainnet();
       }
     } catch {
-      // If endpoint not available, default to showing CELO
-      document.getElementById('networkLabel').textContent = 'CELO';
+      // Server unreachable — read hostname as last resort
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        // Local dev: assume testnet for safety
+        applyTestnet();
+      } else {
+        // Live server but /api/network failed — show neutral state
+        label.textContent = 'CELO';
+      }
     }
   }
 
