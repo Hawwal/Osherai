@@ -262,21 +262,26 @@ async function executeTransfer(session) {
     const wallet  = new ethers.Wallet(config.AGENT_PRIVATE_KEY, provider);
     // ──────────────────────────────────────────────────────────────
 
-    // Step 1: Approve token spending (ERC-20 approval)
+    // Step 1: Resolve token address and amount
     const tokenAddress = config.TOKENS[fromChain.toUpperCase()]?.[token];
     if (!tokenAddress) throw new Error(`Token ${token} address not configured for ${fromChain}`);
 
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
     const amountUnits   = ethers.parseUnits(amount.toString(), 6); // USDC/USDT = 6 decimals
 
-    // Get bridge contract address to approve
-    const bridgeContractAddr = getBridgeContractAddress(bridgeQuote.executionMethod, fromChain);
-    if (!bridgeContractAddr) throw new Error(`Bridge contract address unknown for ${bridgeQuote.bridge}`);
+    // Step 1b: ERC-20 approval — only for bridges that don't handle it themselves
+    // Wormhole and LayerZero run their own internal approval — skip here to avoid double-approval
+    if (!SELF_APPROVING_BRIDGES.includes(bridgeQuote.executionMethod)) {
+      const bridgeContractAddr = getBridgeContractAddress(bridgeQuote.executionMethod, fromChain);
+      if (!bridgeContractAddr) throw new Error(`Bridge contract address unknown for ${bridgeQuote.bridge}. This bridge may not support Celo yet.`);
 
-    console.log(`[Orchestrator] Approving ${amount} ${token} for ${bridgeQuote.bridge}...`);
-    const approveTx = await tokenContract.approve(bridgeContractAddr, amountUnits);
-    await approveTx.wait();
-    console.log(`[Orchestrator] Approval confirmed: ${approveTx.hash}`);
+      console.log(`[Orchestrator] Approving ${amount} ${token} for ${bridgeQuote.bridge}...`);
+      const approveTx = await tokenContract.approve(bridgeContractAddr, amountUnits);
+      await approveTx.wait();
+      console.log(`[Orchestrator] Approval confirmed: ${approveTx.hash}`);
+    } else {
+      console.log(`[Orchestrator] Skipping pre-approval for ${bridgeQuote.bridge} (handles approval internally)`);
+    }
 
     // Step 2: Execute bridge transfer
     let transferTxHash;
@@ -612,22 +617,42 @@ async function executeLayerZeroTransfer({ wallet, intent, bridgeQuote, amountUni
 }
 
 // ── Utility Helpers ───────────────────────────────────────────
+
+// Bridges that run their own internal ERC-20 approval —
+// the orchestrator must NOT run a separate approval for these
+const SELF_APPROVING_BRIDGES = ["wormhole_ntt", "layerzero_stargate"];
+
 function getBridgeContractAddress(executionMethod, chain) {
-  // 🔑 Fill in bridge contract addresses per chain
-  // These are the contracts that need ERC-20 approval
   const BRIDGE_CONTRACTS = {
-    across_relay: {
-      celo:     "ACROSS_SPOKE_POOL_CELO_ADDRESS",   // Get from https://docs.across.to
-      base:     "ACROSS_SPOKE_POOL_BASE_ADDRESS",
-      ethereum: "ACROSS_SPOKE_POOL_ETH_ADDRESS",
-    },
     axelar_gmp: {
-      celo:   '0xe432150cce91c13a887f7D836923d5597adD8E31',   // Get from https://docs.axelar.dev
+      celo:     "0xe432150cce91c13a887f7D836923d5597adD8E31", // Axelar Gateway — Celo Mainnet
+      base:     "0xe432150cce91c13a887f7D836923d5597adD8E31",
+      ethereum: "0x4F4495243837681061C4743b74B3eEdf548D56A5",
+      polygon:  "0x6f015F16De9fC8791b234eF68D486d2bF203FBA8",
+      arbitrum: "0xe432150cce91c13a887f7D836923d5597adD8E31",
+    },
+    wormhole_ntt: {
+      celo:     "0x796Dff6D74F3E27060B71255fe517bFb23C93eed", // Wormhole Token Bridge — Celo Mainnet
+      ethereum: "0x3ee18B2214AFF97000D974cf647E7C347E8fa585",
+      base:     "0x8d2de8d2f73F1F4cAB472AC9A881C9b123C79627",
+      polygon:  "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE",
+      arbitrum: "0x0b2402144Bb366A632D14B83F244D2e0e21bD39c",
+      solana:   "wormDTUJ6AWPNvk59vGQbDvGJmqbDTdgWgAqcLBCgUb", // Solana Token Bridge program
+    },
+    layerzero_stargate: {
+      celo:     "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd", // Stargate Router — Celo
+      ethereum: "0x8731d54E9D02c286767d56ac03e8037C07e01e98",
+      base:     "0x45f1A95A4D3f3836523F5c83673c797f4d4d263B",
+      polygon:  "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
+      arbitrum: "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614",
+      optimism: "0xB0D502E938ed5f4df2E681fE6E419ff29631d62b",
     },
     celer_cbridge: {
-      celo:     "CELER_CBRIDGE_CELO_ADDRESS",       // Get from https://cbridge-docs.celer.network
+      // Celer does not have a deployed contract on Celo — execution not supported
     },
-    // Wormhole and LayerZero contracts are handled by their SDKs
+    across_relay: {
+      // Across does not support Celo as source chain — execution not supported
+    },
   };
   return BRIDGE_CONTRACTS[executionMethod]?.[chain] || null;
 }
