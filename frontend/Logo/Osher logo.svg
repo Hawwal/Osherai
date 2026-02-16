@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 26.4.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 500 500" style="enable-background:new 0 0 500 500;" xml:space="preserve">
+<style type="text/css">
+	.st0{clip-path:url(#SVGID_00000005263851251079651640000009475399856129936524_);}
+	.st1{fill:#FFFFFF;}
+	.st2{font-family:'Century725BT-RomanCondensed';}
+	.st3{font-size:138.29px;}
+	.st4{letter-spacing:-12;}
+</style>
+<g id="Osher_wallet_BG">
+	<rect x="88.5" y="134.7" width="323" height="193.8"/>
+</g>
+<g id="osher_wallet">
+	<g>
+		<defs>
+			<rect id="SVGID_1_" x="88.5" y="134.7" width="323" height="193.8"/>
+		</defs>
+		<clipPath id="SVGID_00000093862986927809778250000017573482555100686469_">
+			<use xlink:href="#SVGID_1_"  style="overflow:visible;"/>
+		</clipPath>
+		<g style="clip-path:url(#SVGID_00000093862986927809778250000017573482555100686469_);">
+			<text transform="matrix(1 0 0 1 108.3 230.6)" class="st1 st2 st3">Osher</text>
+			<text transform="matrix(1 0 0 1 90.57 331.66)" class="st1 st2 st3 st4">W</text>
+			<text transform="matrix(1 0 0 1 178.96 331.66)" class="st1 st2 st3">allet</text>
+		</g>
+	</g>
+</g>
+</svg>

@@ -1,5 +1,5 @@
 {
-  "name": "crossflow-cross-chain-agent",
+  "name": "Osherai",
   "version": "3.1.0",
   "description": "Intent-Based Cross-Chain Transfer Agent — Celo | OpenRouter | Telegram | WhatsApp",
   "main": "server.js",
@@ -15,8 +15,7 @@
     "socket.io":                       "^4.7.5",
     "@wormhole-foundation/sdk":        "^0.7.0",
     "@wormhole-foundation/sdk-evm":    "^0.7.0",
-    "@wormhole-foundation/sdk-solana": "^0.7.0",
-    "@axelar-network/axelarjs-sdk":    "^0.15.3"
+    "@wormhole-foundation/sdk-solana": "^0.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

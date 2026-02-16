@@ -1,53 +1,108 @@
-const { AxelarQueryAPI, Environment, EvmChain } = require('@axelar-network/axelarjs-sdk');
-const { ethers } = require('ethers');
-const config = require('../../config/keys');
-// Axelar Gateway on Celo — verified on celoscan.io
-const AXELAR_GATEWAY_CELO   = '0xe432150cce91c13a887f7D836923d5597adD8E31';
-const AXELAR_GAS_SERVICE    = '0x2d5d7d31F671F86C782533cc367F14109a082712';
+/**
+ * axelar.js
+ * ─────────────────────────────────────────────────────────────────
+ * Executes cross-chain token transfers via Axelar Gateway.
+ * Uses direct ethers.js contract calls — no Axelar SDK required.
+ *
+ * Flow:
+ *   1. Approve token spend to Axelar Gateway
+ *   2. Call sendToken() on Gateway contract
+ *   3. Return source tx hash (Axelar relays to destination automatically)
+ *
+ * Track transfers: https://axelarscan.io
+ * Docs: https://docs.axelar.dev/dev/send-tokens/overview
+ * ─────────────────────────────────────────────────────────────────
+ */
 
-const AXELAR_CHAIN_NAMES = {
-  ethereum: 'ethereum', base: 'base', polygon: 'polygon',
-  arbitrum: 'arbitrum', optimism: 'optimism', celo: 'celo'
+const { ethers } = require("ethers");
+const config     = require("../../config/keys");
+
+// ── Axelar Gateway contract addresses per chain ───────────────────
+const AXELAR_GATEWAYS = {
+  celo:     "0xe432150cce91c13a887f7D836923d5597adD8E31",
+  ethereum: "0x4F4495243837681061C4743b74B3eEdf548D56A5",
+  base:     "0xe432150cce91c13a887f7D836923d5597adD8E31",
+  polygon:  "0x6f015F16De9fC8791b234eF68D486d2bF203FBA8",
+  arbitrum: "0xe432150cce91c13a887f7D836923d5597adD8E31",
+  optimism: "0xe432150cce91c13a887f7D836923d5597adD8E31",
 };
 
+// ── Axelar Gas Service address (same on all EVM chains) ───────────
+const AXELAR_GAS_SERVICE = "0x2d5d7d31F671F86C782533cc367F14109a082712";
+
+// ── Axelar chain name mapping ─────────────────────────────────────
+const AXELAR_CHAIN_NAMES = {
+  ethereum: "ethereum",
+  base:     "base",
+  celo:     "celo",
+  polygon:  "Polygon",
+  arbitrum: "arbitrum",
+  optimism: "optimism",
+  bnb:      "binance",
+};
+
+// ── Axelar Gateway ABI (minimal — only what we need) ─────────────
 const GATEWAY_ABI = [
-  'function sendToken(string destinationChain, string destinationAddress, string symbol, uint256 amount)',
+  "function sendToken(string destinationChain, string destinationAddress, string symbol, uint256 amount)",
+  "function validateContractCall(bytes32 commandId, string sourceChain, string sourceAddress, bytes32 payloadHash) view returns (bool)",
 ];
 
-const GAS_SERVICE_ABI = [
-  'function payNativeGasForContractCallWithToken(address sender, string destinationChain, string destinationAddress, bytes payload, string symbol, uint256 amount, address refundAddress) payable',
-   ];
+// ── Axelar token symbol mapping ───────────────────────────────────
+// Axelar uses its own "axlUSDC" / "axlUSDT" names for bridged tokens
+const AXELAR_TOKEN_SYMBOLS = {
+  USDC: "axlUSDC",
+  USDT: "axlUSDT",
+  CELO: "CELO",
+};
 
-async function executeAxelarTransfer({ wallet, intent, amountUnits, tokenAddress }) {
-  const destChainName = AXELAR_CHAIN_NAMES[intent.toChain];
-  if (!destChainName) throw new Error(`Axelar: unsupported destination ${intent.toChain}`);
+/**
+ * Execute a cross-chain transfer via Axelar Gateway.
+ *
+ * @param {Object}        params.wallet       - ethers.Wallet instance
+ * @param {Object}        params.intent       - Parsed transfer intent
+ * @param {Object}        params.bridgeQuote  - Quote from bridgeRouter
+ * @param {BigInt|string} params.amountUnits  - Amount in token base units
+ * @param {string}        params.tokenAddress - ERC-20 token address on source chain
+ * @returns {Promise<string>} Transaction hash
+ */
+async function executeAxelarTransfer({ wallet, intent, bridgeQuote, amountUnits, tokenAddress }) {
+  const { toChain, fromChain = "celo", toAddress, token } = intent;
 
-  // Step 1 — Approve gateway to spend your token
-  const ERC20_ABI = ['function approve(address spender, uint256 amount) returns (bool)'];
-  const token = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
-  const approveTx = await token.approve(AXELAR_GATEWAY_CELO, amountUnits);
+  const gatewayAddr   = AXELAR_GATEWAYS[fromChain];
+  const destChainName = AXELAR_CHAIN_NAMES[toChain];
+  const axelarSymbol  = AXELAR_TOKEN_SYMBOLS[token] || token;
+
+  if (!gatewayAddr)   throw new Error(`Axelar: no gateway deployed on "${fromChain}"`);
+  if (!destChainName) throw new Error(`Axelar: unsupported destination chain "${toChain}"`);
+
+  console.log(`[Axelar] ${intent.amount} ${token} (${axelarSymbol}): ${fromChain} → ${toChain}`);
+  console.log(`[Axelar] Gateway: ${gatewayAddr}`);
+  console.log(`[Axelar] Recipient: ${toAddress}`);
+
+  const ERC20_ABI = ["function approve(address spender, uint256 amount) returns (bool)"];
+
+  // ── Step 1: Approve Gateway to spend the token ────────────────
+  console.log(`[Axelar] Approving Gateway to spend ${intent.amount} ${token}...`);
+  const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
+  const approveTx     = await tokenContract.approve(gatewayAddr, amountUnits);
   await approveTx.wait();
+  console.log(`[Axelar] Approved: ${approveTx.hash}`);
 
-  // Step 2 — Estimate gas fee using Axelar SDK
-  const axelarQuery = new AxelarQueryAPI({ environment: Environment.MAINNET });
-  const gasFee = await axelarQuery.estimateGasFee(
-    EvmChain.CELO, destChainName.toUpperCase(), 'USDC', 700000
-  );
+  // ── Step 2: Call sendToken on Gateway ────────────────────────
+  const gateway = new ethers.Contract(gatewayAddr, GATEWAY_ABI, wallet);
 
-  // Step 3 — Pay for gas on destination chain
-  const gasService = new ethers.Contract(AXELAR_GAS_SERVICE, GAS_SERVICE_ABI, wallet);
-  const gasPayTx = await gasService.payNativeGasForContractCallWithToken(
-    wallet.address, destChainName, intent.toAddress, '0x',
-    intent.token, amountUnits, wallet.address, { value: gasFee }
-  );
-  await gasPayTx.wait();
-
-  // Step 4 — Send the token via gateway
-  const gateway = new ethers.Contract(AXELAR_GATEWAY_CELO, GATEWAY_ABI, wallet);
+  console.log(`[Axelar] Calling sendToken on Gateway...`);
   const sendTx = await gateway.sendToken(
-    destChainName, intent.toAddress, intent.token, amountUnits
+    destChainName,    // e.g. "base", "Polygon"
+    toAddress,        // destination wallet address (string)
+    axelarSymbol,     // e.g. "axlUSDC"
+    amountUnits,      // amount in base units (6 decimals for USDC/USDT)
   );
-const receipt = await sendTx.wait();
+
+  const receipt = await sendTx.wait();
+  console.log(`[Axelar] ✅ Transfer submitted: ${receipt.hash}`);
+  console.log(`[Axelar] Track at: https://axelarscan.io/transfer/${receipt.hash}`);
+
   return receipt.hash;
 }
 
