@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Osher AI — Admin Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0a0a0f;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #111118;
+      border-bottom: 1px solid #1e1e2e;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 20px; font-weight: 700; color: #a78bfa; }
+    .logo span { color: #64748b; font-weight: 400; font-size: 14px; margin-left: 4px; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #64748b; }
+    .refresh-btn {
+      background: #1e1e2e; border: 1px solid #2d2d3d; color: #a78bfa;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover { background: #2d2d3d; }
+
+    /* ── Login overlay ── */
+    .login-overlay {
+      position: fixed; inset: 0;
+      background: #0a0a0f;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .login-box {
+      background: #111118; border: 1px solid #1e1e2e;
+      border-radius: 16px; padding: 40px; width: 360px;
+      text-align: center;
+    }
+    .login-logo { font-size: 28px; font-weight: 800; color: #a78bfa; margin-bottom: 8px; }
+    .login-sub  { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+    .login-input {
+      width: 100%; background: #0a0a0f; border: 1px solid #2d2d3d;
+      color: #e2e8f0; padding: 12px 16px; border-radius: 8px;
+      font-size: 15px; margin-bottom: 16px; outline: none;
+    }
+    .login-input:focus { border-color: #a78bfa; }
+    .login-btn {
+      width: 100%; background: #a78bfa; color: #0a0a0f;
+      border: none; padding: 13px; border-radius: 8px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-btn:hover { background: #c4b5fd; }
+    .login-error { color: #f87171; font-size: 13px; margin-top: 12px; display: none; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 16px; padding: 24px 32px;
+    }
+    .stat-card {
+      background: #111118; border: 1px solid #1e1e2e;
+      border-radius: 12px; padding: 20px;
+    }
+    .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .stat-value.red    { color: #f87171; }
+    .stat-value.yellow { color: #fbbf24; }
+    .stat-value.green  { color: #34d399; }
+    .stat-value.purple { color: #a78bfa; }
+
+    /* ── Main content ── */
+    .content { padding: 0 32px 32px; }
+
+    /* ── Filters ── */
+    .filters {
+      display: flex; gap: 8px; margin-bottom: 20px; align-items: center;
+    }
+    .filter-btn {
+      background: #111118; border: 1px solid #1e1e2e; color: #94a3b8;
+      padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 13px;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active { background: #1e1e2e; color: #e2e8f0; border-color: #a78bfa; }
+    .filter-btn.all.active    { border-color: #94a3b8; color: #e2e8f0; }
+    .filter-btn.error.active  { border-color: #f87171; color: #f87171; }
+    .filter-btn.warn.active   { border-color: #fbbf24; color: #fbbf24; }
+    .filter-btn.transfer.active { border-color: #34d399; color: #34d399; }
+    .filter-btn.info.active   { border-color: #60a5fa; color: #60a5fa; }
+    .spacer { flex: 1; }
+    .clear-btn {
+      background: transparent; border: 1px solid #3d1515; color: #f87171;
+      padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 13px;
+    }
+    .clear-btn:hover { background: #1a0a0a; }
+
+    /* ── Event log ── */
+    .event-log {
+      background: #111118; border: 1px solid #1e1e2e;
+      border-radius: 12px; overflow: hidden;
+    }
+    .event-header {
+      padding: 14px 20px; border-bottom: 1px solid #1e1e2e;
+      font-size: 13px; color: #64748b; font-weight: 600;
+      display: grid; grid-template-columns: 160px 70px 130px 1fr 200px;
+      gap: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .event-item {
+      padding: 14px 20px; border-bottom: 1px solid #0f0f1a;
+      display: grid; grid-template-columns: 160px 70px 130px 1fr 200px;
+      gap: 12px; align-items: start; font-size: 13px;
+      transition: background 0.15s; cursor: pointer;
+    }
+    .event-item:hover  { background: #0f0f1a; }
+    .event-item:last-child { border-bottom: none; }
+
+    .event-time   { color: #475569; font-variant-numeric: tabular-nums; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+    }
+    .badge.error    { background: #2d0f0f; color: #f87171; }
+    .badge.warn     { background: #2d1f0f; color: #fbbf24; }
+    .badge.info     { background: #0f1f2d; color: #60a5fa; }
+    .badge.transfer { background: #0f2d1f; color: #34d399; }
+
+    .event-source  { color: #7c3aed; font-family: monospace; font-size: 12px; }
+    .event-message { color: #cbd5e1; line-height: 1.5; }
+    .event-details {
+      color: #475569; font-family: monospace; font-size: 11px;
+      line-height: 1.6; word-break: break-all;
+    }
+    .event-details .key   { color: #7c3aed; }
+    .event-details .value { color: #94a3b8; }
+
+    .empty-state {
+      padding: 60px; text-align: center; color: #475569;
+    }
+    .empty-state div { font-size: 40px; margin-bottom: 12px; }
+
+    /* ── Detail modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #111118; border: 1px solid #2d2d3d;
+      border-radius: 16px; padding: 28px; max-width: 700px; width: 100%;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #e2e8f0; }
+    .modal-close {
+      float: right; background: none; border: none; color: #64748b;
+      font-size: 20px; cursor: pointer; line-height: 1;
+    }
+    .modal-json {
+      background: #0a0a0f; border: 1px solid #1e1e2e;
+      border-radius: 8px; padding: 16px; font-family: monospace;
+      font-size: 12px; line-height: 1.8; color: #94a3b8;
+      white-space: pre-wrap; word-break: break-all;
+    }
+
+    @media (max-width: 768px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .event-header, .event-item { grid-template-columns: 1fr; gap: 4px; }
+      .event-header { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">Osher AI</div>
+    <div class="login-sub">Admin Dashboard</div>
+    <input type="password" class="login-input" id="passwordInput"
+           placeholder="Enter admin password" onkeydown="if(event.key==='Enter') doLogin()">
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError">Incorrect password</div>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="status-dot"></div>
+    <div class="logo">Osher AI <span>Admin</span></div>
+  </div>
+  <div class="header-right">
+    <span id="lastUpdated">—</span>
+    <button class="refresh-btn" onclick="loadData()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-label">Errors</div>
+    <div class="stat-value red" id="statErrors">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Warnings</div>
+    <div class="stat-value yellow" id="statWarnings">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Transfers</div>
+    <div class="stat-value green" id="statTransfers">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Events</div>
+    <div class="stat-value purple" id="statTotal">—</div>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <div class="filters">
+    <button class="filter-btn all active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn error"    onclick="setFilter('error', this)">Errors</button>
+    <button class="filter-btn warn"     onclick="setFilter('warn', this)">Warnings</button>
+    <button class="filter-btn transfer" onclick="setFilter('transfer', this)">Transfers</button>
+    <button class="filter-btn info"     onclick="setFilter('info', this)">Info</button>
+    <div class="spacer"></div>
+    <button class="clear-btn" onclick="clearLogs()">Clear Logs</button>
+  </div>
+
+  <div class="event-log">
+    <div class="event-header">
+      <div>Timestamp</div>
+      <div>Level</div>
+      <div>Source</div>
+      <div>Message</div>
+      <div>Details</div>
+    </div>
+    <div id="eventList">
+      <div class="empty-state"><div>📭</div>No events yet. Events will appear here as users interact with Osher AI.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title" id="modalTitle">Event Details</div>
+    <div class="modal-json" id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+  // ── Auth ────────────────────────────────────────────────────────
+  let authToken = sessionStorage.getItem('osher_admin_token');
+  let currentFilter = 'all';
+  let allEvents = [];
+
+  function doLogin() {
+    const pw = document.getElementById('passwordInput').value;
+    fetch('/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.token) {
+        authToken = data.token;
+        sessionStorage.setItem('osher_admin_token', authToken);
+        document.getElementById('loginOverlay').style.display = 'none';
+        loadData();
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    })
+    .catch(() => {
+      document.getElementById('loginError').style.display = 'block';
+    });
+  }
+
+  function authHeaders() {
+    return { 'Authorization': 'Bearer ' + authToken };
+  }
+
+  // ── Data loading ────────────────────────────────────────────────
+  async function loadData() {
+    try {
+      const [eventsRes, statsRes] = await Promise.all([
+        fetch('/admin/events?limit=200', { headers: authHeaders() }),
+        fetch('/admin/stats',            { headers: authHeaders() }),
+      ]);
+
+      if (eventsRes.status === 401) {
+        sessionStorage.removeItem('osher_admin_token');
+        location.reload();
+        return;
+      }
+
+      allEvents = await eventsRes.json();
+      const stats = await statsRes.json();
+
+      document.getElementById('statErrors').textContent    = stats.errors;
+      document.getElementById('statWarnings').textContent  = stats.warnings;
+      document.getElementById('statTransfers').textContent = stats.transfers;
+      document.getElementById('statTotal').textContent     = stats.total;
+      document.getElementById('lastUpdated').textContent   = 'Updated ' + new Date().toLocaleTimeString();
+
+      renderEvents();
+    } catch (err) {
+      console.error('Failed to load:', err);
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────
+  function renderEvents() {
+    const filtered = currentFilter === 'all'
+      ? allEvents
+      : allEvents.filter(e => e.level === currentFilter);
+
+    const list = document.getElementById('eventList');
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div>📭</div>No ' +
+        (currentFilter === 'all' ? '' : currentFilter + ' ') + 'events yet.</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(e => {
+      const time    = new Date(e.timestamp).toLocaleString('en-GB', {
+        month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      const details = formatDetails(e.details);
+      return `<div class="event-item" onclick="showDetail(${JSON.stringify(e).replace(/"/g, '&quot;')})">
+        <div class="event-time">${time}</div>
+        <div><span class="badge ${e.level}">${e.level}</span></div>
+        <div class="event-source">${e.source}</div>
+        <div class="event-message">${escHtml(e.message)}</div>
+        <div class="event-details">${details}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function formatDetails(details) {
+    if (!details || Object.keys(details).length === 0) return '—';
+    return Object.entries(details).slice(0, 4).map(([k, v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return `<span class="key">${escHtml(k)}:</span> <span class="value">${escHtml(val.slice(0, 60))}</span>`;
+    }).join('<br>');
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Filters ──────────────────────────────────────────────────────
+  function setFilter(level, btn) {
+    currentFilter = level;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderEvents();
+  }
+
+  // ── Clear ────────────────────────────────────────────────────────
+  async function clearLogs() {
+    if (!confirm('Clear all logs? This cannot be undone.')) return;
+    await fetch('/admin/clear', { method: 'POST', headers: authHeaders() });
+    await loadData();
+  }
+
+  // ── Modal ────────────────────────────────────────────────────────
+  function showDetail(event) {
+    document.getElementById('modalTitle').textContent = event.level.toUpperCase() + ' — ' + event.source;
+    document.getElementById('modalContent').textContent = JSON.stringify(event, null, 2);
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────
+  if (authToken) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    loadData();
+  }
+
+  // Auto-refresh every 30 seconds
+  setInterval(loadData, 30000);
+</script>
+</body>
+</html>

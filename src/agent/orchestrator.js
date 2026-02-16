@@ -22,6 +22,7 @@ const { parseIntent, generateTransactionPreview, explainError } = require("./int
 const { detectChainFromAddress }   = require("../chains/chainDetector");
 const { getBestBridgeRoute }       = require("../bridges/bridgeRouter");
 const { validateTransfer, simulateTransaction } = require("../utils/validator");
+const logger = require("../utils/errorLogger");
 const { checkPriceAlert }          = require("../trading/alertEngine");
 const { getSwapRoute }             = require("../trading/swapRouter");
 
@@ -334,36 +335,42 @@ async function executeTransfer(session) {
 
   } catch (error) {
     session.state = "idle";
-    console.error("[Orchestrator] Transfer execution error:", error.message);
 
-    // Map common errors to plain-English reasons
-    let reason = error.message || "Unknown error";
-    let suggestion = "Please try again in a moment.";
+    // Log full technical details to admin dashboard — never shown to user
+    logger.error("Orchestrator", "Transfer execution failed", {
+      error:     error.message,
+      stack:     error.stack?.split("\n").slice(0, 5).join(" | "),
+      intent:    { token: intent?.token, amount: intent?.amount, toChain: intent?.toChain },
+      bridge:    bridgeQuote?.bridge,
+      sessionId: session?.id,
+    });
 
-    if (reason.toLowerCase().includes("insufficient") || reason.toLowerCase().includes("exceeds balance")) {
-      reason = "Your wallet doesn't have enough " + intent.token + " to cover this transfer plus the gas fee.";
-      suggestion = "Check your balance (say 'show my balance') and make sure you have extra CELO for gas fees too.";
-    } else if (reason.toLowerCase().includes("allowance") || reason.toLowerCase().includes("approve")) {
-      reason = "The bridge wasn't approved to spend your " + intent.token + ".";
-      suggestion = "This usually resolves itself on retry. Try sending again.";
-    } else if (reason.toLowerCase().includes("gas") || reason.toLowerCase().includes("fee")) {
-      reason = "There wasn't enough CELO in your wallet to pay the network gas fee.";
-      suggestion = "Add some CELO to your wallet to cover gas. Even 0.1 CELO is usually enough.";
-    } else if (reason.toLowerCase().includes("nonce")) {
-      reason = "A transaction ordering conflict occurred.";
-      suggestion = "Wait 30 seconds and try again.";
-    } else if (reason.toLowerCase().includes("revert") || reason.toLowerCase().includes("execution reverted")) {
-      reason = "The bridge contract rejected the transaction. This can happen if the bridge has low liquidity or the amount is below its minimum.";
-      suggestion = "Try a different amount, or ask me to use a different bridge.";
-    } else if (reason.toLowerCase().includes("network") || reason.toLowerCase().includes("timeout") || reason.toLowerCase().includes("rpc")) {
-      reason = "The connection to the blockchain timed out.";
-      suggestion = "The network may be congested. Try again in a minute.";
+    // Map to user-friendly message only
+    const raw = (error.message || "").toLowerCase();
+    let userMessage;
+
+    if (raw.includes("insufficient") || raw.includes("exceeds balance")) {
+      userMessage = "Your wallet doesn't have enough " + (intent?.token || "tokens") + " to complete this transfer. Check your balance and try again.";
+    } else if (raw.includes("gas") || raw.includes("fee") || raw.includes("celo")) {
+      userMessage = "There wasn't enough CELO in your wallet to pay the network fee. Add a small amount of CELO for gas and try again.";
+    } else if (raw.includes("allowance") || raw.includes("approve")) {
+      userMessage = "There was an issue authorising the transfer. Please try again.";
+    } else if (raw.includes("nonce")) {
+      userMessage = "A transaction conflict occurred. Please wait 30 seconds and try again.";
+    } else if (raw.includes("revert") || raw.includes("rejected")) {
+      userMessage = "The bridge declined this transaction. This can happen if the amount is below the bridge minimum or liquidity is low. Try a larger amount.";
+    } else if (raw.includes("timeout") || raw.includes("network") || raw.includes("rpc")) {
+      userMessage = "The network is taking longer than expected. Please try again in a moment.";
+    } else if (raw.includes("sdk") || raw.includes("import") || raw.includes("module")) {
+      userMessage = "A service required for this transfer isn't available right now. Our team has been notified. Please try a different route.";
+    } else {
+      userMessage = "The transfer couldn't be completed right now. Please try again, or try a different amount or destination.";
     }
 
     return {
-      message: "❌ Transfer failed: " + reason + " " + suggestion,
+      message: "❌ " + userMessage,
       state:   "error",
-      data:    { error: error.message },
+      data:    {},  // never expose raw error to frontend
     };
   }
 }

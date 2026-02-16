@@ -17,6 +17,7 @@ const { handleTelegramUpdate, registerWebhook: registerTelegramWebhook } = requi
 const { handleWhatsAppWebhook, verifyWebhook: verifyWhatsAppWebhook }    = require("./src/bots/whatsappBot");
 const { createPaymentRequest, verifyPayment, hasRecentPayment }          = require("./src/payments/x402Payment");
 const { notifyAlertTriggered } = require("./src/bots/notifier");
+const mountAdminRoutes = require("./adminRoutes");
 
 const app    = express();
 const server = http.createServer(app);
@@ -63,6 +64,9 @@ app.get("/api/network", (_, res) => {
     chainId: config.RPC?.CELO?.includes("alfajores") ? 44787 : 42220,
   });
 });
+
+// ── Admin dashboard ──────────────────────────────────────────────
+mountAdminRoutes(app);
 
 app.get("/api/alerts/:sessionId",    (req, res) => res.json({ alerts: getAlertsForSession(req.params.sessionId) }));
 app.delete("/api/alerts/:alertId",   (req, res) => res.json({ success: cancelAlert(req.params.alertId) }));
