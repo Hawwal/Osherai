@@ -3,6 +3,8 @@
 .env.*
 *.pem
 *.key
+deploy.md
+README WORKFLOW.md
 
 ### Node ###
 node_modules/
