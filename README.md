@@ -1,5 +1,8 @@
 # Osher Ai
 
+## Notice
+Verification on selfclaw is not avaialble due to reatrictions of self protocol verification in Nigeria. verification of project is verifiable on karma and 8004 with **agent id 131**
+
 ## 🚀 Overview
 Osher Ai is an intent-based AI agent that enables users to transfer stablecoins from Celo to other blockchains fast, cheaply, and safely — without interacting directly with a bridge. The agent understands natural language commands, automatically detects destination chains, compares cross-chain routes in real time, selects the optimal bridge, and executes the transfer on behalf of the user. It also integrates price alerts and automated trading logic, ensuring users get the best possible execution before bridging. This project makes cross-chain transfers as simple as sending a message.
 ## 🎯 Problem
