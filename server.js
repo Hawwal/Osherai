@@ -65,10 +65,6 @@ app.get("/api/network", (_, res) => {
   });
 });
 
-app.get("/.well-known/agent-registration.json", (req, res) => {
-  res.sendFile(path.join(__dirname, "frontend", "agent-registration.json"));
-});
-
 // ── Admin dashboard ──────────────────────────────────────────────
 mountAdminRoutes(app);
 
