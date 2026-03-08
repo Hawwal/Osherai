@@ -2,11 +2,11 @@
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Osher AI",
   "description": "An intent-based cross-chain transfer agent. Send tokens across blockchains conversationally — just say where to send and Osher AI handles routing, bridging, and execution automatically.",
-  "image": "https://https://osherai.onrender.com/logo.svg",
+  "image": "https://your-render-url.onrender.com/logo.png",
   "services": [
     {
       "name": "web",
-      "endpoint": "https://https://osherai.onrender.com"
+      "endpoint": "https://your-render-url.onrender.com"
     }
   ],
   "x402Support": false,
