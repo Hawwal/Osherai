@@ -632,7 +632,7 @@
 <!-- ── Header ─────────────────────────────────────── -->
 <header>
   <div class="logo">
-    <img src="/logo.png" alt="Osher AI" class="logo-icon">
+    <img src="/logo.svg" alt="Osher AI" class="logo-icon">
     <div class="logo-text">Osher <span>AI</span></div>
   </div>
   <div class="header-status">
@@ -699,7 +699,7 @@
   <div class="chat-area">
     <div class="messages" id="messages">
       <div class="empty-state" id="emptyState">
-        <div class="empty-icon"><img src="/logo.png" style="width:90px;height:90px;object-fit:contain"></div>
+        <div class="empty-icon"><img src="/logo.svg" style="width:90px;height:90px;object-fit:contain"></div>
         <div class="empty-title">Osher AI</div>
         <div class="empty-sub">
           Send stablecoins across any blockchain using plain English.
@@ -846,7 +846,7 @@
   function appendMessage(role, text) {
     const container = document.getElementById('messages');
     const time      = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const avatar    = role === 'agent' ? '<img src="/logo.png" style="width:20px;height:20px;object-fit:contain">' : '👤';
+    const avatar    = role === 'agent' ? '<img src="/logo.svg" style="width:20px;height:20px;object-fit:contain">' : '👤';
     const isAgent   = role === 'agent';
 
     const el = document.createElement('div');
@@ -897,7 +897,7 @@
     const el = document.createElement('div');
     el.className = 'msg agent';
     el.innerHTML = `
-      <div class="msg-avatar"><img src="/logo.png" style="width:20px;height:20px;object-fit:contain"></div>
+      <div class="msg-avatar"><img src="/logo.svg" style="width:20px;height:20px;object-fit:contain"></div>
       <div class="msg-content">
         <div class="msg-bubble">${escapeHtml(text)}
           ${warningHtml}
@@ -930,7 +930,7 @@
     const el = document.createElement('div');
     el.className = 'msg agent';
     el.innerHTML = `
-      <div class="msg-avatar"><img src="/logo.png" style="width:20px;height:20px;object-fit:contain"></div>
+      <div class="msg-avatar"><img src="/logo.svg" style="width:20px;height:20px;object-fit:contain"></div>
       <div class="msg-content">
         <div class="msg-bubble" style="border-color:rgba(0,229,160,0.3)">
           ${escapeHtml(text)}
@@ -998,7 +998,7 @@
     el.id = id;
     el.className = 'msg agent';
     el.innerHTML = `
-      <div class="msg-avatar"><img src="/logo.png" style="width:20px;height:20px;object-fit:contain"></div>
+      <div class="msg-avatar"><img src="/logo.svg" style="width:20px;height:20px;object-fit:contain"></div>
       <div class="msg-content">
         <div class="thinking">
           <div class="thinking-dot"></div>
