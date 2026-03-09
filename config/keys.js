@@ -43,6 +43,49 @@ module.exports = {
         : "https://sepolia-forno.celo-testnet.org"),
   },
 
+// ── Solana Configuration ────────────────────────────────────
+  SOLANA: {
+    // RPC URLs
+    RPC_URL: env.SOLANA_RPC_URL || 
+      (env.NETWORK === "mainnet"
+        ? "https://api.mainnet-beta.solana.com"
+        : "https://api.devnet.solana.com"),
+
+    // Master wallet private key (base58-encoded)
+    MASTER_PRIVATE_KEY: env.SOLANA_MASTER_PRIVATE_KEY || "YOUR_SOLANA_PRIVATE_KEY_HERE",
+
+    // Sub-agent keys (optional, for multi-agent setup)
+    TRADING_BOT_KEY: env.SOLANA_TRADING_BOT_KEY || "",
+    LP_PROVIDER_KEY: env.SOLANA_LP_PROVIDER_KEY || "",
+
+    // Token mint addresses (Solana mainnet)
+    TOKENS: {
+      SOL: "So11111111111111111111111111111111111111112", // Wrapped SOL
+      USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC (mainnet)
+      USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT (mainnet)
+      
+      // Devnet addresses (for testing)
+      USDC_DEVNET: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      USDT_DEVNET: "EJwZgeZrdC8TXTQbQBoL6bfuAnFUUy1PVCMB4DYPzVaS",
+    },
+
+    // Transaction limits (safety)
+    TX_LIMITS: {
+      MAX_SOL_PER_TX: parseFloat(env.SOLANA_MAX_SOL_PER_TX || "10"),
+      MAX_USD_PER_TX: parseFloat(env.SOLANA_MAX_USD_PER_TX || "1000"),
+      DAILY_LIMIT_USD: parseFloat(env.SOLANA_DAILY_LIMIT_USD || "5000"),
+    },
+
+    // Jupiter swap settings
+    JUPITER: {
+      SLIPPAGE_BPS: parseInt(env.JUPITER_SLIPPAGE_BPS || "50"), // 0.5%
+      API_KEY: env.JUPITER_API_KEY || "", // Optional, for priority
+    },
+
+    // Multi-agent encryption (optional)
+    MASTER_PASSWORD: env.MULTI_AGENT_PASSWORD || "",
+  },
+
   // ── Integrations (Optional) ──────────────────────────────────
   TELEGRAM_BOT_TOKEN: env.TELEGRAM_BOT_TOKEN || "",
   WHATSAPP_TOKEN: env.WHATSAPP_TOKEN || "",

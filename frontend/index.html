@@ -5,7 +5,111 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Osher AI — Cross-Chain Transfer Agent</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
-  <style>
+<style>
+  .wallet-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(8px);
+  }
+
+  .wallet-modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  }
+
+  .wallet-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .wallet-option {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+    text-align: left;
+    width: 100%;
+  }
+
+  .wallet-option:hover:not(.disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .wallet-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .wallet-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+  }
+
+  .wallet-info {
+    flex: 1;
+  }
+
+  .wallet-name {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 4px;
+  }
+
+  .wallet-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .install-badge {
+    padding: 4px 12px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  .modal-close {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--muted);
+  }
+
     :root {
       --bg:        #0a0c10;
       --surface:   #111418;
@@ -751,6 +855,7 @@
   // ── State ─────────────────────────────────────────────────────────
   const SESSION_ID    = 'session_' + Math.random().toString(36).slice(2, 9);
   let   walletInfo    = {};
+  let connectedWalletType = null; // 'solana' or 'evm'
   let   awaitingConfirm = false;
   let   pendingTxData   = null;
 
@@ -758,23 +863,24 @@
   // 🔑 WALLETCONNECT_PROJECT_ID — inject from config/keys.js server-side
   // OR pass it directly here if building standalone:
   // const WALLETCONNECT_PROJECT_ID = "YOUR_PROJECT_ID_HERE";
-  async function connectWallet() {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const chainId  = await window.ethereum.request({ method: 'eth_chainId' });
-        walletInfo = { address: accounts[0], chainId: parseInt(chainId, 16) };
-        document.querySelector('.connect-btn').textContent = accounts[0].slice(0,6) + '...' + accounts[0].slice(-4);
-        document.querySelector('.connect-btn').style.borderColor = 'var(--accent)';
-        document.querySelector('.connect-btn').style.color       = 'var(--accent)';
-        showToast('✅ Wallet connected: ' + accounts[0].slice(0,8) + '...');
-      } catch (err) {
-        showToast('❌ Wallet connection failed');
-      }
-    } else {
-      showToast('No wallet detected. Install MetaMask or MiniPay.');
+  async function connectWallet(walletType = 'auto') {
+  try {
+    if (walletType === 'auto') {
+      // Show wallet selection modal
+      showWalletPickerModal();
+      return;
     }
+
+    if (walletType === 'phantom') {
+      await connectPhantom();
+    } else if (walletType === 'metamask') {
+      await connectMetaMask();
+    }
+  } catch (err) {
+    console.error('[Wallet] Connection failed:', err);
+    showToast('❌ Wallet connection failed: ' + err.message);
   }
+}
 
   // ── Send Message ──────────────────────────────────────────────────
   async function sendMessage() {
@@ -1167,6 +1273,182 @@
       '4. Save changes (auto-redeploys)'
     );
   }
+
+  async function connectPhantom() {
+  const provider = window.phantom?.solana;
+  
+  if (!provider) {
+    showToast('❌ Phantom wallet not detected. Install from phantom.app');
+    window.open('https://phantom.app/', '_blank');
+    return;
+  }
+
+  if (!provider.isPhantom) {
+    showToast('❌ Provider is not Phantom');
+    return;
+  }
+
+  const resp = await provider.connect();
+  const publicKey = resp.publicKey.toString();
+
+  walletInfo = {
+    address: publicKey,
+    chainId: 'solana', // Not a numeric chainId like EVM
+    walletType: 'solana',
+  };
+
+  connectedWalletType = 'solana';
+
+  // Update UI
+  const shortAddr = publicKey.slice(0, 6) + '...' + publicKey.slice(-4);
+  document.querySelector('.connect-btn').textContent = '🟣 ' + shortAddr;
+  document.querySelector('.connect-btn').style.borderColor = '#ab9ff2'; // Phantom purple
+  document.querySelector('.connect-btn').style.color = '#ab9ff2';
+  
+  // Update chain pill
+  const chainPill = document.querySelector('.chain-pill');
+  if (chainPill) {
+    chainPill.innerHTML = '<div class="chain-dot"></div> SOLANA';
+    chainPill.style.background = 'rgba(171, 159, 242, 0.1)';
+    chainPill.style.borderColor = 'rgba(171, 159, 242, 0.2)';
+    chainPill.style.color = '#ab9ff2';
+  }
+
+  showToast('✅ Phantom connected: ' + shortAddr);
+  console.log('[Wallet] Phantom connected:', publicKey);
+
+  // Listen for account changes
+  provider.on('accountChanged', (publicKey) => {
+    if (publicKey) {
+      walletInfo.address = publicKey.toString();
+      document.querySelector('.connect-btn').textContent = 
+        '🟣 ' + publicKey.toString().slice(0, 6) + '...' + publicKey.toString().slice(-4);
+    } else {
+      disconnectWallet();
+    }
+  });
+}
+
+async function connectMetaMask() {
+  if (typeof window.ethereum === 'undefined') {
+    showToast('❌ MetaMask not detected. Install from metamask.io');
+    window.open('https://metamask.io/download/', '_blank');
+    return;
+  }
+
+  // Check if this is actually Phantom's EVM compatibility mode
+  if (window.ethereum.isPhantom) {
+    showToast('⚠️ Detected Phantom. Please use "Connect Phantom" for Solana transfers.');
+    return;
+  }
+
+  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+  
+  walletInfo = {
+    address: accounts[0],
+    chainId: parseInt(chainId, 16),
+    walletType: 'evm',
+  };
+
+  connectedWalletType = 'evm';
+
+  // Update UI
+  const shortAddr = accounts[0].slice(0, 6) + '...' + accounts[0].slice(-4);
+  document.querySelector('.connect-btn').textContent = '🦊 ' + shortAddr;
+  document.querySelector('.connect-btn').style.borderColor = 'var(--accent)';
+  document.querySelector('.connect-btn').style.color = 'var(--accent)';
+
+  // Restore Celo chain pill
+  const chainPill = document.querySelector('.chain-pill');
+  if (chainPill) {
+    chainPill.innerHTML = '<div class="chain-dot"></div> CELO';
+    chainPill.style.background = 'rgba(252, 255, 82, 0.1)';
+    chainPill.style.borderColor = 'rgba(252, 255, 82, 0.2)';
+    chainPill.style.color = 'var(--celo)';
+  }
+
+  showToast('✅ MetaMask connected: ' + shortAddr);
+  console.log('[Wallet] MetaMask connected:', accounts[0], 'Chain:', chainId);
+
+  // Listen for account/chain changes
+  window.ethereum.on('accountsChanged', (accounts) => {
+    if (accounts.length === 0) {
+      disconnectWallet();
+    } else {
+      walletInfo.address = accounts[0];
+      document.querySelector('.connect-btn').textContent = 
+        '🦊 ' + accounts[0].slice(0, 6) + '...' + accounts[0].slice(-4);
+    }
+  });
+
+  window.ethereum.on('chainChanged', (chainId) => {
+    walletInfo.chainId = parseInt(chainId, 16);
+    console.log('[Wallet] Chain changed to:', chainId);
+  });
+}
+
+function disconnectWallet() {
+  walletInfo = {};
+  connectedWalletType = null;
+  
+  document.querySelector('.connect-btn').textContent = 'Connect Wallet';
+  document.querySelector('.connect-btn').style.borderColor = '';
+  document.querySelector('.connect-btn').style.color = '';
+  
+  showToast('🔌 Wallet disconnected');
+}
+
+function showWalletPickerModal() {
+  const hasPhantom = !!window.phantom?.solana;
+  const hasMetaMask = !!window.ethereum && !window.ethereum.isPhantom;
+
+  const modal = document.createElement('div');
+  modal.className = 'wallet-modal';
+  modal.innerHTML = `
+    <div class="wallet-modal-content">
+      <h2 style="margin-bottom: 24px; font-family: 'Syne', sans-serif;">Connect Wallet</h2>
+      
+      <div class="wallet-options">
+        <button class="wallet-option ${hasPhantom ? '' : 'disabled'}" 
+                onclick="${hasPhantom ? "connectWallet('phantom')" : "window.open('https://phantom.app/', '_blank')"}"
+                ${hasPhantom ? '' : 'disabled'}>
+          <div class="wallet-icon">🟣</div>
+          <div class="wallet-info">
+            <div class="wallet-name">Phantom</div>
+            <div class="wallet-desc">For Solana transfers & swaps</div>
+          </div>
+          ${hasPhantom ? '' : '<span class="install-badge">Install</span>'}
+        </button>
+
+        <button class="wallet-option ${hasMetaMask ? '' : 'disabled'}" 
+                onclick="${hasMetaMask ? "connectWallet('metamask')" : "window.open('https://metamask.io/download/', '_blank')"}"
+                ${hasMetaMask ? '' : 'disabled'}>
+          <div class="wallet-icon">🦊</div>
+          <div class="wallet-info">
+            <div class="wallet-name">MetaMask</div>
+            <div class="wallet-desc">For Celo & EVM chains</div>
+          </div>
+          ${hasMetaMask ? '' : '<span class="install-badge">Install</span>'}
+        </button>
+      </div>
+
+      <button class="modal-close" onclick="closeWalletModal()">Cancel</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  
+  // Close on background click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeWalletModal();
+  });
+}
+
+function closeWalletModal() {
+  const modal = document.querySelector('.wallet-modal');
+  if (modal) modal.remove();
+}
 
   // ── Init ──────────────────────────────────────────────────────────
   initNetworkBadge();

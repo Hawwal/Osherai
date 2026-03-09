@@ -98,6 +98,27 @@ TYPE 5 — Needs clarification (ONLY if both address AND amount are truly missin
   "partialIntent": {}
 }
 
+TYPE 6 — Swap (Token exchange on DEX):
+{
+  "type": "swap",
+  "fromToken": "SOL",
+  "toToken": "USDC",
+  "amount": 5,
+  "chain": "solana"
+}
+Examples: "swap 5 SOL to USDC", "exchange 100 USDC for SOL", "buy 50 USDT with SOL"
+
+TYPE 7 — DeFi (Staking, LP provision):
+{
+  "type": "defi",
+  "operation": "stake" | "add_liquidity" | "remove_liquidity",
+  "token": "SOL",
+  "amount": 10,
+  "protocol": "marinade" | "raydium" | "orca",
+  "chain": "solana"
+}
+Examples: "stake 10 SOL on Marinade", "add liquidity 5 SOL and 500 USDC to Raydium"
+
 Rules:
 - fromChain is ALWAYS "celo" unless user says otherwise
 - Default priority: "cheapest"
@@ -175,6 +196,12 @@ async function parseIntent(userMessage, sessionContext = {}) {
 function localParseIntent(message) {
   const msg = message.toLowerCase().trim();
 
+  // Let AI handle greetings and very short inputs naturally
+  const greetings = ["hello", "hi", "hey", "thanks", "thank you", "ok", "okay", "yes", "no", "sure", "yep", "nope"];
+  if (greetings.includes(msg) || msg.length < 4) {
+    return null; // Return null = skip local parser, force OpenRouter AI
+  }
+
   // Alert intent
   if (msg.includes("alert") || msg.includes("notify") || msg.includes("when fees")) {
     const threshold  = parseFloat(msg.match(/\$?([\d.]+)/)?.[1] || "1");
@@ -222,6 +249,64 @@ function localParseIntent(message) {
   const evmAddress    = message.match(/0x[a-fA-F0-9]{40}/)?.[0]    || null;
   const solanaAddress = message.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/)?.[0] || null;
   const toAddress     = evmAddress || solanaAddress || null;
+ 
+// Swap intent
+  if (msg.includes("swap") || msg.includes("exchange") || msg.includes("convert")) {
+    const swapMatch = msg.match(/swap\s+(\d+\.?\d*)\s+(\w+)\s+(?:to|for)\s+(\w+)/i);
+    if (swapMatch) {
+      return {
+        type: "swap",
+        fromToken: swapMatch[2].toUpperCase(),
+        toToken: swapMatch[3].toUpperCase(),
+        amount: parseFloat(swapMatch[1]),
+        chain: "solana", // Default to Solana for swaps
+      };
+    }
+
+    // Alternative pattern: "buy 100 USDC with SOL"
+    const buyMatch = msg.match(/buy\s+(\d+\.?\d*)\s+(\w+)(?:\s+with\s+(\w+))?/i);
+    if (buyMatch) {
+      return {
+        type: "swap",
+        fromToken: buyMatch[3]?.toUpperCase() || "SOL",
+        toToken: buyMatch[2].toUpperCase(),
+        amount: parseFloat(buyMatch[1]),
+        chain: "solana",
+      };
+    }
+  }
+
+  // DeFi intent — staking
+  if (msg.includes("stake") || msg.includes("staking")) {
+    const stakeMatch = msg.match(/stake\s+(\d+\.?\d*)\s+(\w+)(?:\s+on\s+(\w+))?/i);
+    if (stakeMatch) {
+      return {
+        type: "defi",
+        operation: "stake",
+        token: stakeMatch[2].toUpperCase(),
+        amount: parseFloat(stakeMatch[1]),
+        protocol: stakeMatch[3]?.toLowerCase() || "marinade",
+        chain: "solana",
+      };
+    }
+  }
+
+  // DeFi intent — liquidity provision
+  if (msg.includes("add liquidity") || msg.includes("provide liquidity")) {
+    const lpMatch = msg.match(/add\s+(?:liquidity\s+)?(\d+\.?\d*)\s+(\w+).*?(\d+\.?\d*)\s+(\w+)/i);
+    if (lpMatch) {
+      return {
+        type: "defi",
+        operation: "add_liquidity",
+        tokenA: lpMatch[2].toUpperCase(),
+        amountA: parseFloat(lpMatch[1]),
+        tokenB: lpMatch[4].toUpperCase(),
+        amountB: parseFloat(lpMatch[3]),
+        protocol: msg.includes("raydium") ? "raydium" : "orca",
+        chain: "solana",
+      };
+    }
+  }
 
   // Infer destination chain
   const chainMap = {
@@ -325,4 +410,25 @@ async function explainError(errorType, context) {
   return fallbacks[errorType] || fallbacks.default;
 }
 
-module.exports = { parseIntent, generateTransactionPreview, explainError };
+/**
+ * Detect if this is a Solana address vs EVM address
+ * Solana: base58, 32-44 chars
+ * EVM: 0x prefix, 42 chars hex
+ */
+function detectChainFromAddress(address) {
+  if (address.startsWith("0x") && address.length === 42) {
+    return "evm";
+  }
+  if (address.length >= 32 && address.length <= 44 && !address.startsWith("0x")) {
+    return "solana";
+  }
+  return "unknown";
+}
+
+module.exports = {
+  parseIntent,
+  generateTransactionPreview,
+  explainError,
+  detectChainFromAddress,
+};
+

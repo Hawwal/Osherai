@@ -25,6 +25,19 @@ const { validateTransfer, simulateTransaction } = require("../utils/validator");
 const logger = require("../utils/errorLogger");
 const { checkPriceAlert }          = require("../trading/alertEngine");
 const { getSwapRoute }             = require("../trading/swapRouter");
+const { SolanaWallet } = require("../wallets/solanaWallet");
+const { executeSolanaTransfer } = require("../solana/transfers");
+const { swapTokens } = require("../solana/jupiterSwap");
+const { executeSolanaDeFi } = require("../solana/defi");
+
+// Initialize Solana wallet (lazy load)
+let solanaWallet = null;
+function getSolanaWallet() {
+  if (!solanaWallet) {
+    solanaWallet = new SolanaWallet();
+  }
+  return solanaWallet;
+}
 
 // Session state (in production, use Redis or a database)
 const activeSessions = new Map();
@@ -64,6 +77,12 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
       case "transfer":
         return await processTransfer(session, intent);
 
+      case "swap":
+        return await handleSwapIntent(session, intent);
+
+      case "defi":
+        return await handleDeFiIntent(session, intent);
+
       case "swap_and_transfer":
         return await processSwapAndTransfer(session, intent);
 
@@ -78,7 +97,7 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
 
       default:
         return {
-          message: "Hey! I'm your cross-chain transfer assistant. Try saying something like:\n\n• \"Send 100 USDT to 0xA1B2...\"\ \n• \"Move 50 USDC to my Solana wallet 7xB2...\"\n• \"Alert me when fees to Base drop below $0.50\"\n\nWhat would you like to do?",
+          message: "Hey! I'm your cross-chain transfer assistant. Try saying something like:\n\n• \"Send 100 USDT to 0xA1B2...\"\n• \"Move 50 USDC to my Solana wallet 7xB2...\"\n• \"Swap 5 SOL to USDC\"\n• \"Stake 10 SOL on Marinade\"\n• \"Alert me when fees to Base drop below $0.50\"\n\nWhat would you like to do?",
           state:   "idle",
         };
     }
@@ -115,6 +134,29 @@ async function processTransfer(session, intent) {
     return {
       message: `⚠️ ${chainInfo.note}`,
       state: "idle",
+    };
+  }
+
+  // Step 1b: Check if this is a native Solana transfer (no bridge needed)
+  const isSolanaAddress = SolanaWallet.isValidAddress(toAddress);
+  
+  if (isSolanaAddress && toChain === "solana") {
+    // This is a native Solana transfer — no bridge needed
+    console.log("[Orchestrator] Detected native Solana transfer");
+    
+    const solWallet = getSolanaWallet();
+    const preview = `Sending **${amount} ${token}** to Solana address:\n${toAddress}\n\nThis is a direct Solana transfer (no bridge).\n\nReply YES to confirm.`;
+    
+    session.state = "awaiting_confirmation";
+    session.pendingTransfer = {
+      type: "solana_native",
+      wallet: solWallet,
+      intent: { token, amount, toAddress },
+    };
+
+    return {
+      message: preview,
+      state: "awaiting_confirmation",
     };
   }
 
@@ -252,6 +294,72 @@ async function handleConfirmation(session, userMessage) {
  * ─────────────────────────────────────────────────────────────────
  */
 async function executeTransfer(session) {
+  // Handle Solana native transfers and swaps
+  if (session.pendingTransfer?.type === "solana_native") {
+    const { wallet, intent } = session.pendingTransfer;
+    
+    try {
+      const receipt = await executeSolanaTransfer({ wallet, intent, amount: intent.amount });
+      
+      const successMsg = `✅ Transfer successful!\n\n` +
+        `📦 **${receipt.amount} ${receipt.token}** → Solana\n` +
+        `🔗 Transaction: ${receipt.signature}\n` +
+        `🌐 Explorer: ${receipt.explorerUrl}`;
+
+      session.state = "idle";
+      session.pendingTransfer = null;
+
+      logger.transfer("Orchestrator", "Solana transfer completed", {
+        signature: receipt.signature,
+        token: receipt.token,
+        amount: receipt.amount,
+      });
+
+      return {
+        message: successMsg,
+        state: "idle",
+        data: { receipt },
+      };
+    } catch (error) {
+      session.state = "idle";
+      logger.error("Orchestrator", "Solana transfer failed", { error: error.message });
+      
+      return {
+        message: `❌ Solana transfer failed: ${error.message}`,
+        state: "error",
+      };
+    }
+  }
+
+  if (session.pendingTransfer?.type === "solana_swap") {
+    const { wallet, quote } = session.pendingTransfer;
+    const { executeSwap } = require("../solana/jupiterSwap");
+    
+    try {
+      const receipt = await executeSwap({ wallet, quote });
+      
+      const successMsg = `✅ Swap completed!\n\n` +
+        `📦 **${receipt.inputAmount} ${receipt.inputToken}** → **${receipt.outputAmount.toFixed(4)} ${receipt.outputToken}**\n` +
+        `💹 Price impact: ${receipt.priceImpact.toFixed(2)}%\n` +
+        `🔗 ${receipt.signature}`;
+
+      session.state = "idle";
+      session.pendingTransfer = null;
+
+      return {
+        message: successMsg,
+        state: "idle",
+      };
+    } catch (error) {
+      session.state = "idle";
+      return {
+        message: `❌ Swap failed: ${error.message}`,
+        state: "error",
+      };
+    }
+  }
+
+  // Standard bridge transfer execution
   const { intent, bridgeQuote } = session.pendingTransaction;
   const { token, amount, toAddress, fromChain = "celo", toChain } = intent;
 
@@ -452,6 +560,29 @@ async function handleQuery(session, intent) {
       const tokens = config.TOKENS.CELO;
       const balances = [];
 
+  // Also check Solana balance if configured
+    if (config.SOLANA.MASTER_PRIVATE_KEY !== "YOUR_SOLANA_PRIVATE_KEY_HERE") {
+      try {
+        const solWallet = getSolanaWallet();
+        const solBalance = await solWallet.getBalance();
+        const splBalances = await solWallet.getAllTokenBalances();
+
+    if (solBalance > 0.001) {
+      balances.push({ symbol: "SOL", amount: solBalance.toFixed(4), chain: "Solana" });
+    }
+
+    for (const token of splBalances) {
+      balances.push({
+        symbol: token.symbol,
+        amount: token.balance.toFixed(2),
+        chain: "Solana",
+      });
+    }
+  } catch (err) {
+    console.error("[Orchestrator] Solana balance check failed:", err.message);
+  }
+}
+
       // Check native CELO balance
       const celoWei = await provider.getBalance(address);
       const celoBalance = parseFloat(ethers.formatEther(celoWei));
@@ -503,11 +634,7 @@ async function handleQuery(session, intent) {
   }
 
   // ── Token list query ──────────────────────────────────────────
-  if (intent.queryType === "token_list" || 
-      query.toLowerCase().includes("what tokens") ||
-      query.toLowerCase().includes("which tokens") ||
-      query.toLowerCase().includes("what can i send") ||
-      query.toLowerCase().includes("supported tokens")) {
+  if (intent.queryType === "token_list") {
     
     const network = config.NETWORK === "testnet" ? "Celo Sepolia testnet" : "Celo mainnet";
     const tokens = config.NETWORK === "testnet" 
@@ -716,6 +843,107 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function allowance(address owner, address spender) view returns (uint256)",
 ];
+
+/**
+ * Handle token swap intents (Solana only for now)
+ */
+async function handleSwapIntent(session, intent) {
+  const { fromToken, toToken, amount } = intent;
+  
+  // Only support Solana swaps currently
+  if (intent.chain !== "solana") {
+    return {
+      message: `Token swaps are currently only supported on Solana. Try: "Swap 5 SOL to USDC"`,
+      state: "idle",
+    };
+  }
+
+  const solWallet = getSolanaWallet();
+  
+  try {
+    // Get quote
+    const result = await swapTokens({
+      wallet: solWallet,
+      fromToken,
+      toToken,
+      amount,
+    });
+
+    if (result.needsConfirmation) {
+      session.state = "awaiting_confirmation";
+      session.pendingTransfer = {
+        type: "solana_swap",
+        wallet: solWallet,
+        quote: result.quote,
+      };
+
+      return {
+        message: result.message,
+        state: "awaiting_confirmation",
+      };
+    }
+
+    // Swap executed immediately (small amount or low price impact)
+    const receipt = result.receipt;
+    const successMsg = `✅ Swap completed!\n\n` +
+      `📦 **${receipt.inputAmount} ${receipt.inputToken}** → **${receipt.outputAmount.toFixed(4)} ${receipt.outputToken}**\n` +
+      `💹 Price impact: ${receipt.priceImpact.toFixed(2)}%\n` +
+      `🔗 ${receipt.signature}\n` +
+      `🌐 ${receipt.explorerUrl}`;
+
+    return {
+      message: successMsg,
+      state: "idle",
+      data: { receipt },
+    };
+  } catch (error) {
+    logger.error("Orchestrator", "Solana swap failed", { error: error.message });
+    return {
+      message: `❌ Swap failed: ${error.message}`,
+      state: "error",
+    };
+  }
+}
+
+/**
+ * Handle DeFi operations (staking, liquidity provision)
+ */
+async function handleDeFiIntent(session, intent) {
+  const { operation, protocol, chain } = intent;
+
+  // Only support Solana DeFi currently
+  if (chain !== "solana") {
+    return {
+      message: `DeFi operations are currently only supported on Solana.`,
+      state: "idle",
+    };
+  }
+
+  const solWallet = getSolanaWallet();
+
+  try {
+    const result = await executeSolanaDeFi({ wallet: solWallet, intent });
+
+    if (!result.success) {
+      return {
+        message: `⚠️ ${result.message}\n\nSDK Required: \`${result.sdkRequired}\`\n\nTo enable ${protocol} integration, install: \`npm install ${result.sdkRequired}\``,
+        state: "idle",
+      };
+    }
+
+    return {
+      message: `✅ ${operation} completed on ${protocol}!`,
+      state: "idle",
+      data: result,
+    };
+  } catch (error) {
+    logger.error("Orchestrator", "DeFi operation failed", { error: error.message, protocol, operation });
+    return {
+      message: `❌ ${operation} failed: ${error.message}`,
+      state: "error",
+    };
+  }
+}
 
 module.exports = {
   handleUserMessage,
