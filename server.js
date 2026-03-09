@@ -1,5 +1,5 @@
 /**
- * server.js — CrossFlow Agent Server
+ * server.js — Osher AI Server
  * Handles: Web UI, REST API, Telegram bot, WhatsApp bot, WebSocket, x402 payments
  */
 
@@ -63,6 +63,10 @@ app.get("/api/network", (_, res) => {
     rpc:     config.RPC?.CELO?.includes("alfajores") ? "alfajores" : "mainnet",
     chainId: config.RPC?.CELO?.includes("alfajores") ? 44787 : 42220,
   });
+});
+
+app.get("/logo.svg", (req, res) => {
+  res.sendFile(path.join(__dirname, "frontend", "logo.svg"));
 });
 
 // ── Admin dashboard ──────────────────────────────────────────────
@@ -136,7 +140,7 @@ const PORT = config.SERVER.PORT || 3000;
 server.listen(PORT, async () => {
   console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║  ⚡ CrossFlow Agent  →  http://localhost:${PORT}             ║
+║  ⚡ Osher AI  →  http://localhost:${PORT}             ║
 ╠══════════════════════════════════════════════════════════╣
 ║  REST API         POST /api/message                      ║
 ║                   GET  /api/fees | /api/gas | /api/price ║

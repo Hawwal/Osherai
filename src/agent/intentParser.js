@@ -27,7 +27,7 @@ const ai = hasApiKey
       baseURL: "https://openrouter.ai/api/v1",
       defaultHeaders: {
         "HTTP-Referer":  config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-        "X-Title":       "CrossFlow Cross-Chain Agent",
+        "X-Title":       "Osher AI — Cross-Chain Transfer Agent",
       },
     })
   : null;
@@ -174,12 +174,6 @@ async function parseIntent(userMessage, sessionContext = {}) {
  */
 function localParseIntent(message) {
   const msg = message.toLowerCase().trim();
-
-// Skip generic greetings — let OpenRouter AI handle natural conversation
-  const genericWords = ["hello", "hi", "hey", "thanks", "thank you", "ok", "okay", "yes", "no", "sure"];
-  if (genericWords.includes(msg)) {
-    return { type: "clarification_needed", missingFields: [] };
-  }
 
   // Alert intent
   if (msg.includes("alert") || msg.includes("notify") || msg.includes("when fees")) {

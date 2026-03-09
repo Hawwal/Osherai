@@ -502,6 +502,26 @@ async function handleQuery(session, intent) {
     }
   }
 
+  // ── Token list query ──────────────────────────────────────────
+  if (intent.queryType === "token_list" || 
+      query.toLowerCase().includes("what tokens") ||
+      query.toLowerCase().includes("which tokens") ||
+      query.toLowerCase().includes("what can i send") ||
+      query.toLowerCase().includes("supported tokens")) {
+    
+    const network = config.NETWORK === "testnet" ? "Celo Sepolia testnet" : "Celo mainnet";
+    const tokens = config.NETWORK === "testnet" 
+      ? "USDC, USDT (limited testnet availability)" 
+      : "USDC, USDT, USDm, CELO";
+    
+    const chains = "Solana, Base, Ethereum, Polygon, Arbitrum, Optimism";
+    
+    return {
+      message: "On " + network + ", I can send:\n\n• **Tokens:** " + tokens + "\n• **To chains:** " + chains + "\n\nJust say something like \"Send 10 USDT to [address] on Base\" and I'll handle the rest!",
+      state: "idle",
+    };
+  }
+
   // ── Fee check ───────────────────────────────────────────────────
   if (intent.queryType === "fee_check") {
     const { best, all } = await getBestBridgeRoute({

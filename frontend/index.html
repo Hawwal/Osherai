@@ -632,11 +632,11 @@
 <!-- ── Header ─────────────────────────────────────── -->
 <header>
   <div class="logo">
-    <img src="/logo.svg" alt="Osher AI" class="logo-icon">
+    <div class="logo-icon"><img src="/logo.svg" style="width:30px;height:30px;object-fit:contain"></div>
     <div class="logo-text">Osher <span>AI</span></div>
   </div>
   <div class="header-status">
-    <div class="chain-pill" id="networkBadge" class="network-badge" onclick="toggleNetwork()" style="cursor:pointer">
+    <div class="chain-pill" id="networkBadge">
       <div class="chain-dot"></div>
       <span id="networkLabel">CELO</span>
     </div>
@@ -1108,24 +1108,23 @@
   */
 
   // ── Network badge — reads from server, with reliable fallback ────
-async function initNetworkBadge() {
+  async function initNetworkBadge() {
     const badge  = document.getElementById('networkBadge');
     const label  = document.getElementById('networkLabel');
     const banner = document.getElementById('testnetBanner');
 
     function applyTestnet() {
       badge.classList.add('testnet');
-      label.textContent = 'TESTNET';  // ← Changed from "CELO ALFAJORES (TESTNET)"
+      label.textContent = 'TESTNET';  // Short and clean
       banner.style.display = 'block';
       document.title = '[TESTNET] Osher AI';
-      badge.title = 'Click to switch to mainnet';
     }
 
     function applyMainnet() {
       badge.classList.remove('testnet');
-      label.textContent = 'CELO MAINNET';
+      label.textContent = 'MAINNET';
       banner.style.display = 'none';
-      badge.title = 'Click to switch to testnet';
+      document.title = 'Osher AI';
     }
 
     try {
@@ -1133,14 +1132,14 @@ async function initNetworkBadge() {
       if (!res.ok) throw new Error('no response');
       const data = await res.json();
 
-      // Celo Sepolia chain ID is 11142220, Alfajores is 44787
+      // Celo Sepolia = 11142220, Alfajores = 44787, Mainnet = 42220
       if (data.network === 'testnet' || data.chainId === 11142220 || data.chainId === 44787) {
         applyTestnet();
       } else if (data.network === 'mainnet' || data.chainId === 42220) {
         applyMainnet();
       } else {
         const rpc = data.rpc || '';
-        rpc.includes('sepolia') || rpc.includes('alfajores') ? applyTestnet() : applyMainnet();
+        (rpc.includes('sepolia') || rpc.includes('alfajores')) ? applyTestnet() : applyMainnet();
       }
     } catch {
       const host = window.location.hostname;
@@ -1152,16 +1151,21 @@ async function initNetworkBadge() {
     }
   }
 
-  // NEW: Network toggle function
+  // Network toggle function
   function toggleNetwork() {
-    const currentLabel = document.getElementById('networkLabel').textContent;
-    const newNetwork = currentLabel === 'TESTNET' ? 'mainnet' : 'testnet';
-    
-    if (confirm(`Switch to ${newNetwork.toUpperCase()}?\n\nThis will reload the page with different network settings.`)) {
-      // In production, this would call your server to update config
-      // For now, just alert the user
-      alert(`Network switching requires updating NETWORK="${newNetwork}" in your Render environment variables, then redeploying.`);
-    }
+    const current = document.getElementById('networkLabel').textContent;
+    const target = current === 'TESTNET' ? 'MAINNET' : 'TESTNET';
+    alert(
+      'To switch to ' + target + ':\n\n' +
+      '1. Go to your Render dashboard\n' +
+      '2. Open Environment settings\n' +
+      '3. Change these variables:\n' +
+      '   • NETWORK=' + target.toLowerCase() + '\n' +
+      '   • RPC_CELO=' + (target === 'MAINNET' 
+          ? 'https://forno.celo.org' 
+          : 'https://sepolia-forno.celo-testnet.org') + '\n' +
+      '4. Save changes (auto-redeploys)'
+    );
   }
 
   // ── Init ──────────────────────────────────────────────────────────
