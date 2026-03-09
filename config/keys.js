@@ -10,9 +10,16 @@ module.exports = {
   // ── Network ──────────────────────────────────────────────────
   NETWORK: env.NETWORK || "testnet",  // "testnet" or "mainnet"
 
+  // ── Server Config ────────────────────────────────────────────
+  SERVER: {
+    PORT: parseInt(env.PORT || "3000"),
+    CORS_ORIGIN: env.CORS_ORIGIN || "*",
+    PUBLIC_URL: env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || "http://localhost:3000",
+  },
+
   // ── OpenRouter AI ────────────────────────────────────────────
   OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY_HERE",
-  AI_MODEL: env.AI_MODEL || "openrouter/free",  // Or "anthropic/claude-opus-4-5-20251101" if upgraded
+  AI_MODEL: env.AI_MODEL || "openrouter/free",
 
   // ── Agent Wallet ─────────────────────────────────────────────
   AGENT_PRIVATE_KEY: env.AGENT_PRIVATE_KEY || "YOUR_AGENT_PRIVATE_KEY_HERE",
@@ -26,14 +33,14 @@ module.exports = {
 
   // ── Service Fees ─────────────────────────────────────────────
   SERVICE_FEE_WALLET: env.SERVICE_FEE_WALLET || "YOUR_FEE_COLLECTION_WALLET_HERE",
-  SERVICE_FEE_PERCENT: parseFloat(env.SERVICE_FEE_PERCENT || "0.5"),  // 0.5% default
+  SERVICE_FEE_PERCENT: parseFloat(env.SERVICE_FEE_PERCENT || "0.5"),
 
   // ── RPC URLs ─────────────────────────────────────────────────
   RPC: {
     CELO: env.RPC_CELO || 
       (env.NETWORK === "mainnet"
         ? "https://forno.celo.org"
-        : "https://sepolia-forno.celo-testnet.org"),  // Celo Sepolia (new L2 testnet)
+        : "https://sepolia-forno.celo-testnet.org"),
   },
 
   // ── Integrations (Optional) ──────────────────────────────────
@@ -42,18 +49,12 @@ module.exports = {
   WHATSAPP_PHONE_NUMBER_ID: env.WHATSAPP_PHONE_NUMBER_ID || "",
   WHATSAPP_VERIFY_TOKEN: env.WHATSAPP_VERIFY_TOKEN || "osherai-webhook-verify",
 
-  // Admin dashboard password
   ADMIN_PASSWORD: env.ADMIN_PASSWORD || "osherai-admin",
-
-  // Public URL for webhooks (set this in Render env vars)
-  PUBLIC_URL: env.PUBLIC_URL || "YOUR_PUBLIC_HTTPS_URL_HERE",
 
   // ── Mento Swap (Celo native stablecoin swap) ────────────────
   SWAP: {
     MENTO_BROKER_ADDRESS: env.MENTO_BROKER_ADDRESS || "0x777A8255cA72E541B2aA3a9B1cBB0F92b90b5C3B",
-    MENTO_SLIPPAGE_TOLERANCE: parseFloat(env.MENTO_SLIPPAGE_TOLERANCE || "0.01"),  // 1%
-    
-    // Uniswap V3 router (used if Mento doesn't support a pair)
+    MENTO_SLIPPAGE_TOLERANCE: parseFloat(env.MENTO_SLIPPAGE_TOLERANCE || "0.01"),
     UNISWAP_ROUTER_V3: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
   },
 
@@ -68,10 +69,10 @@ module.exports = {
   // ── Token Addresses ──────────────────────────────────────────
   TOKENS: {
     CELO: {
-      USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",  // Sepolia testnet
-      USDT: "0x617f3112bf5397D0467D315cC709EF968D9ba546",  // Sepolia testnet
-      USDm: "0x765DE816845861e75A25fCA122bb6898B8B1282a",  // Mainnet only
-      CELO: "0x471EcE3750Da237f93B8E339c536989b8978a438",  // Native wrapped CELO
+      USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+      USDT: "0x617f3112bf5397D0467D315cC709EF968D9ba546",
+      USDm: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      CELO: "0x471EcE3750Da237f93B8E339c536989b8978a438",
     },
     BASE: {
       USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -93,8 +94,8 @@ module.exports = {
 
   // ── Alert Thresholds ─────────────────────────────────────────
   ALERTS: {
-    FEE_THRESHOLD_USD: parseFloat(env.FEE_THRESHOLD_USD || "1.0"),  // Alert if fee drops below $1
-    PRICE_CHANGE_PERCENT: parseFloat(env.PRICE_CHANGE_PERCENT || "5.0"),  // Alert on 5% price move
-    GAS_THRESHOLD_GWEI: parseFloat(env.GAS_THRESHOLD_GWEI || "50"),  // Alert if gas < 50 gwei
+    FEE_THRESHOLD_USD: parseFloat(env.FEE_THRESHOLD_USD || "1.0"),
+    PRICE_CHANGE_PERCENT: parseFloat(env.PRICE_CHANGE_PERCENT || "5.0"),
+    GAS_THRESHOLD_GWEI: parseFloat(env.GAS_THRESHOLD_GWEI || "50"),
   },
 };
