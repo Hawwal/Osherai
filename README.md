@@ -119,14 +119,6 @@ User:
 Agent:
 Monitors fees
 Executes automatically when condition is met
-## 🎯 Why This Matters for Celo
-Osher Ai turns Celo into a first-class participant in the multi-chain stablecoin economy, making:
-Cross-chain movement effortless
-User experience intuitive
-Bridging safer
-Stablecoin liquidity more fluid
-In short:
-Celo becomes the hub, and AI becomes the bridge.
 ## 🔧 Roadmap
 Phase 1
 Basic intent parsing
