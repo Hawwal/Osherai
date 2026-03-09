@@ -200,6 +200,29 @@ class SolanaWallet {
     console.log(`[Solana] Airdrop confirmed: ${signature}`);
     return signature;
   }
+
+  /**
+   * Generate a new Solana wallet for a user
+   * Returns: { publicKey, privateKey (base58), seedPhrase }
+   */
+  static generateWalletForUser() {
+    const bip39 = require('bip39');
+    const { derivePath } = require('ed25519-hd-key');
+    
+    // Generate mnemonic (12 words)
+    const mnemonic = bip39.generateMnemonic();
+    
+    // Derive keypair from seed
+    const seed = bip39.mnemonicToSeedSync(mnemonic, "");
+    const derivedSeed = derivePath("m/44'/501'/0'/0'", seed.toString('hex')).key;
+    const keypair = Keypair.fromSeed(derivedSeed);
+    
+    return {
+      publicKey: keypair.publicKey.toBase58(),
+      privateKey: bs58.encode(keypair.secretKey),
+      seedPhrase: mnemonic,
+    };
+  }
 }
 
 module.exports = { SolanaWallet };

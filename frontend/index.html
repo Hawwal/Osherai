@@ -744,7 +744,7 @@
       <div class="chain-dot"></div>
       <span id="networkLabel">CELO</span>
     </div>
-    <button class="connect-btn" onclick="connectWallet()">Connect Wallet</button>
+    <button class="connect-btn" id="walletBtn" onclick="handleWalletButton()">Connect Wallet</button>
   </div>
 </header>
 
@@ -1274,6 +1274,76 @@
     );
   }
 
+  // ── Wallet Button Handler ────────────────────────────────────
+  function handleWalletButton() {
+    if (connectedWalletType) {
+      // Wallet is connected - show disconnect modal
+      showDisconnectModal();
+    } else {
+      // No wallet connected - show wallet picker
+      connectWallet();
+    }
+  }
+
+  function showDisconnectModal() {
+    const walletName = connectedWalletType === 'solana' ? 'Phantom' : 'MetaMask';
+    const walletEmoji = connectedWalletType === 'solana' ? '🟣' : '🦊';
+    const address = walletInfo.address;
+    const shortAddr = address.slice(0, 6) + '...' + address.slice(-4);
+
+    const modal = document.createElement('div');
+    modal.className = 'wallet-modal';
+    modal.innerHTML = `
+      <div class="wallet-modal-content">
+        <h2 style="margin-bottom: 24px; font-family: 'Syne', sans-serif;">Connected Wallet</h2>
+        
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="font-size: 48px; margin-bottom: 12px;">${walletEmoji}</div>
+          <div style="font-weight: 600; margin-bottom: 8px;">${walletName}</div>
+          <div style="color: var(--muted); font-size: 0.85rem;">${shortAddr}</div>
+          <div style="color: var(--muted); font-size: 0.75rem; margin-top: 4px;">
+            ${connectedWalletType === 'solana' ? 'Solana Network' : 'Celo Network'}
+          </div>
+        </div>
+
+        <button class="wallet-option" onclick="switchWallet()" style="margin-bottom: 12px;">
+          <div class="wallet-icon">🔄</div>
+          <div class="wallet-info">
+            <div class="wallet-name">Switch Wallet</div>
+            <div class="wallet-desc">Connect a different wallet</div>
+          </div>
+        </button>
+
+        <button class="wallet-option" onclick="disconnectAndClose()" style="border-color: var(--danger);">
+          <div class="wallet-icon">🔌</div>
+          <div class="wallet-info">
+            <div class="wallet-name" style="color: var(--danger);">Disconnect</div>
+            <div class="wallet-desc">Sign out of this wallet</div>
+          </div>
+        </button>
+
+        <button class="modal-close" onclick="closeWalletModal()" style="margin-top: 12px;">Cancel</button>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeWalletModal();
+    });
+  }
+
+  function switchWallet() {
+    disconnectWallet();
+    closeWalletModal();
+    setTimeout(() => connectWallet(), 100);
+  }
+
+  function disconnectAndClose() {
+    disconnectWallet();
+    closeWalletModal();
+  }
+
   async function connectPhantom() {
   const provider = window.phantom?.solana;
   
@@ -1316,6 +1386,8 @@
 
   showToast('✅ Phantom connected: ' + shortAddr);
   console.log('[Wallet] Phantom connected:', publicKey);
+  
+  closeWalletModal();
 
   // Listen for account changes
   provider.on('accountChanged', (publicKey) => {
@@ -1371,6 +1443,8 @@ async function connectMetaMask() {
   showToast('✅ MetaMask connected: ' + shortAddr);
   console.log('[Wallet] MetaMask connected:', accounts[0], 'Chain:', chainId);
 
+  closeWalletModal();
+
   // Listen for account/chain changes
   window.ethereum.on('accountsChanged', (accounts) => {
     if (accounts.length === 0) {
@@ -1392,9 +1466,19 @@ function disconnectWallet() {
   walletInfo = {};
   connectedWalletType = null;
   
-  document.querySelector('.connect-btn').textContent = 'Connect Wallet';
-  document.querySelector('.connect-btn').style.borderColor = '';
-  document.querySelector('.connect-btn').style.color = '';
+  const btn = document.querySelector('.connect-btn');
+  btn.textContent = 'Connect Wallet';
+  btn.style.borderColor = '';
+  btn.style.color = '';
+  
+  // Restore Celo chain pill
+  const chainPill = document.querySelector('.chain-pill');
+  if (chainPill) {
+    chainPill.innerHTML = '<div class="chain-dot"></div> CELO';
+    chainPill.style.background = 'rgba(252, 255, 82, 0.1)';
+    chainPill.style.borderColor = 'rgba(252, 255, 82, 0.2)';
+    chainPill.style.color = 'var(--celo)';
+  }
   
   showToast('🔌 Wallet disconnected');
 }

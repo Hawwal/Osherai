@@ -945,6 +945,22 @@ async function handleDeFiIntent(session, intent) {
   }
 }
 
+if (intent.type === "create_wallet") {
+  const newWallet = SolanaWallet.generateWalletForUser();
+  
+  // Store in database (you'd need to add DB)
+  // db.saveUserWallet(sessionId, newWallet);
+  
+  return {
+    message: `✅ Solana wallet created!\n\n` +
+      `🔑 Address: ${newWallet.publicKey}\n\n` +
+      `⚠️ IMPORTANT: Save your recovery phrase:\n` +
+      `${newWallet.seedPhrase}\n\n` +
+      `Write this down on paper. Never share it with anyone!`,
+    state: "idle",
+  };
+}
+
 module.exports = {
   handleUserMessage,
   activeSessions,
