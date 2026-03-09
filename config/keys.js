@@ -56,23 +56,25 @@ module.exports = {
   AGENT_WALLET_ADDRESS: env.AGENT_WALLET_ADDRESS || "YOUR_WALLET_ADDRESS_HERE",
   // Your agent wallet's public 0x address
 
-  // ─────────────────────────────────────────────────────────
-  //  🌐 RPC ENDPOINTS
-  // ─────────────────────────────────────────────────────────
-  RPC: {
-    CELO: env.RPC_CELO || "https://alfajores-forno.celo-testnet.org",
-    // Testnet (default): https://alfajores-forno.celo-testnet.org
-    // Mainnet (go-live):  https://forno.celo.org
-    // Premium:            https://dashboard.alchemy.com → Celo
-
-    BASE:     env.RPC_BASE     || "https://mainnet.base.org",
-    ETHEREUM: env.RPC_ETHEREUM || "https://eth.llamarpc.com",
-    POLYGON:  env.RPC_POLYGON  || "https://polygon-rpc.com",
-    ARBITRUM: env.RPC_ARBITRUM || "https://arb1.arbitrum.io/rpc",
-    SOLANA:   env.RPC_SOLANA   || "https://api.mainnet-beta.solana.com",
-    // All above have free public endpoints — no key needed to start
-    // Upgrade to Alchemy/Helius for production reliability
-  },
+// ─────────────────────────────────────────────────────────
+//  🌐 RPC ENDPOINTS
+// ─────────────────────────────────────────────────────────
+RPC: {
+  CELO: process.env.RPC_CELO || 
+    (process.env.NETWORK === "mainnet"
+      ? "https://forno.celo.org"
+      : "https://sepolia-forno.celo-testnet.org"),  // ← Celo Sepolia RPC
+  // Testnet (default): https://alfajores-forno.celo-testnet.org
+  // Mainnet (go-live):  https://forno.celo.org
+  // Premium:            https://dashboard.alchemy.com → Celo
+  BASE:     env.RPC_BASE     || "https://mainnet.base.org",
+  ETHEREUM: env.RPC_ETHEREUM || "https://eth.llamarpc.com",
+  POLYGON:  env.RPC_POLYGON  || "https://polygon-rpc.com",
+  ARBITRUM: env.RPC_ARBITRUM || "https://arb1.arbitrum.io/rpc",
+  SOLANA:   env.RPC_SOLANA   || "https://api.mainnet-beta.solana.com",
+  // All above have free public endpoints — no key needed to start
+  // Upgrade to Alchemy/Helius for production reliability
+},
 
   // ─────────────────────────────────────────────────────────
   //  🌉 BRIDGE APIS (no keys needed for quotes)
