@@ -196,10 +196,26 @@ async function parseIntent(userMessage, sessionContext = {}) {
 function localParseIntent(message) {
   const msg = message.toLowerCase().trim();
 
-  // Let AI handle greetings and very short inputs naturally
-  const greetings = ["hello", "hi", "hey", "thanks", "thank you", "ok", "okay", "yes", "no", "sure", "yep", "nope"];
-  if (greetings.includes(msg) || msg.length < 4) {
-    return null; // Return null = skip local parser, force OpenRouter AI
+  // Check for general conversation - let AI handle naturally
+  const conversationalWords = ["hello", "hi", "hey", "how are you", "what's up", "whats up", 
+                                "good morning", "good evening", "thanks", "thank you"];
+  const isConversational = conversationalWords.some(w => msg.includes(w)) || msg.length < 10;
+  
+  // Check for questions - let AI handle
+  const questionWords = ["what", "why", "how", "when", "where", "who", "can you", "do you"];
+  const isQuestion = questionWords.some(w => msg.startsWith(w));
+  
+  if (isConversational || isQuestion) {
+    return { type: "conversational", originalMessage: message };
+  }
+
+  // Create wallet intent
+  if (msg.includes("create") && (msg.includes("wallet") || msg.includes("address"))) {
+    const isSolana = msg.includes("solana") || msg.includes("sol") || msg.includes("phantom");
+    return {
+      type: "create_wallet",
+      chain: isSolana ? "solana" : "evm",
+    };
   }
 
   // Alert intent

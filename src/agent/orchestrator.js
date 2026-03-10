@@ -89,6 +89,9 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
       case "alert":
         return await registerAlert(session, intent);
 
+      case "conversational":
+        return await handleConversationalMessage(session, intent.originalMessage);
+
         case "create_wallet": {
         const newWallet = SolanaWallet.generateWalletForUser();
         // Store in database (you'd need to add DB)
@@ -556,11 +559,17 @@ async function handleQuery(session, intent) {
       const { ethers } = require("ethers");
       const rpcUrl    = config.RPC["CELO"];
       const provider  = new ethers.JsonRpcProvider(rpcUrl);
-      const address   = session.walletAddress || config.AGENT_WALLET_ADDRESS;
+      
+      // Get address from session wallet or agent wallet
+      let address = session.walletAddress;
+      
+      if (!address && config.AGENT_PRIVATE_KEY && config.AGENT_PRIVATE_KEY !== "YOUR_AGENT_PRIVATE_KEY_HERE") {
+        address = new ethers.Wallet(config.AGENT_PRIVATE_KEY).address;
+      }
 
-      if (!address || address === "YOUR_WALLET_ADDRESS_HERE") {
+      if (!address) {
         return {
-          message: "I don't have a wallet address on file yet. Please connect your wallet first, or set AGENT_WALLET_ADDRESS in your config.",
+          message: "I don't have a wallet to check. Please connect your wallet first, or set AGENT_PRIVATE_KEY in your environment variables.",
           state: "idle",
         };
       }
@@ -575,7 +584,7 @@ async function handleQuery(session, intent) {
       const balances = [];
 
   // Also check Solana balance if configured
-    if (config.SOLANA.MASTER_PRIVATE_KEY !== "YOUR_SOLANA_PRIVATE_KEY_HERE") {
+    if (config.SOLANA.MASTER_PRIVATE_KEY && config.SOLANA.MASTER_PRIVATE_KEY !== "YOUR_SOLANA_PRIVATE_KEY_HERE") {
       try {
         const solWallet = getSolanaWallet();
         const solBalance = await solWallet.getBalance();
@@ -857,6 +866,93 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function allowance(address owner, address spender) view returns (uint256)",
 ];
+
+/**
+ * Handle conversational messages with OpenRouter AI
+ */
+async function handleConversationalMessage(session, userMessage) {
+  const { parseIntent } = require("./intentParser");
+  const OpenAI = require("openai");
+  
+  // Use OpenRouter for natural conversation
+  if (!config.OPENROUTER_API_KEY || config.OPENROUTER_API_KEY === "YOUR_OPENROUTER_KEY_HERE") {
+    return {
+      message: "Hey! I'm your crypto transfer assistant. I can help you:\n• Send tokens across chains\n• Check balances\n• Swap tokens on Solana\n• Set price alerts\n\nTry asking me something like 'Send 10 USDT to...' or 'Check my balance'",
+      state: "idle",
+    };
+  }
+
+  try {
+    const ai = new OpenAI({
+      apiKey: config.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
+        "X-Title": "Osher AI",
+      },
+    });
+
+    const conversationHistory = session.history.slice(-6).map(h => ({
+      role: h.role === "user" ? "user" : "assistant",
+      content: h.content,
+    }));
+
+    const response = await ai.chat.completions.create({
+      model: config.AI_MODEL || "openrouter/free",
+      max_tokens: 512,
+      messages: [
+        {
+          role: "system",
+          content: `You are Osher AI, a friendly and helpful crypto transfer assistant. You can:
+- Send tokens across blockchains (Celo, Solana, Base, Ethereum, Polygon, Arbitrum)
+- Check wallet balances (both Celo and Solana)
+- Swap tokens on Solana via Jupiter DEX
+- Create Solana wallets for users
+- Set up price and fee alerts
+
+Be conversational, warm, and helpful. Keep responses brief (2-3 sentences) unless explaining something complex. 
+If the user asks you to do something (like send money or check balance), remind them of the correct format.
+Never make up information about transactions or balances.
+
+Available features:
+- "Send X USDT to 0x..." for transfers
+- "Check my balance" for wallet balances  
+- "Swap 5 SOL to USDC" for token swaps
+- "Create a Solana wallet" for new wallets
+- "Alert me when fees drop below $1" for alerts`
+        },
+        ...conversationHistory,
+        { role: "user", content: userMessage }
+      ],
+    });
+
+    const aiReply = response.choices[0].message.content.trim();
+    
+    return {
+      message: aiReply,
+      state: "idle",
+    };
+
+  } catch (error) {
+    console.error("[Conversational] AI call failed:", error.message);
+    
+    // Friendly fallback
+    const greetings = ["hello", "hi", "hey"];
+    const isGreeting = greetings.some(g => userMessage.toLowerCase().includes(g));
+    
+    if (isGreeting) {
+      return {
+        message: "Hey there! 👋 I'm Osher AI, your cross-chain transfer assistant. I can help you send tokens, check balances, swap on Solana, and more. What would you like to do?",
+        state: "idle",
+      };
+    }
+    
+    return {
+      message: "I'm here to help with crypto transfers! Try:\n• 'Send 10 USDT to 0x...'\n• 'Check my balance'\n• 'Swap 5 SOL to USDC'\n\nWhat would you like to do?",
+      state: "idle",
+    };
+  }
+}
 
 /**
  * Handle token swap intents (Solana only for now)
