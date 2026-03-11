@@ -176,27 +176,34 @@ async function processTransfer(session, intent) {
     };
   }
 
-  // Step 1b: Check if this is a native Solana transfer (no bridge needed)
+// Step 1b: Check if this is a native Solana transfer (no bridge needed)
   const isSolanaAddress = SolanaWallet.isValidAddress(toAddress);
   
   if (isSolanaAddress && toChain === "solana") {
-    // This is a native Solana transfer — no bridge needed
-    console.log("[Orchestrator] Detected native Solana transfer");
-    
-    const solWallet = getSolanaWallet();
-    const preview = `Sending **${amount} ${token}** to Solana address:\n${toAddress}\n\nThis is a direct Solana transfer (no bridge).\n\nReply YES to confirm.`;
-    
-    session.state = "awaiting_confirmation";
-    session.pendingTransfer = {
-      type: "solana_native",
-      wallet: solWallet,
-      intent: { token, amount, toAddress },
-    };
+    // CRITICAL CHECK: Only do native transfer if Phantom is connected
+    if (session.walletType === 'solana') {
+      // This is a native Solana transfer — no bridge needed
+      console.log("[Orchestrator] Detected native Solana transfer with Phantom connected");
+      
+      const solWallet = getSolanaWallet();
+      const preview = `Sending **${amount} ${token}** to Solana address:\n${toAddress}\n\nThis is a direct Solana transfer (no bridge).\n\nReply YES to confirm.`;
+      
+      session.state = "awaiting_confirmation";
+      session.pendingTransfer = {
+        type: "solana_native",
+        wallet: solWallet,
+        intent: { token, amount, toAddress },
+      };
 
-    return {
-      message: preview,
-      state: "awaiting_confirmation",
-    };
+      return {
+        message: preview,
+        state: "awaiting_confirmation",
+      };
+    } else {
+      // MetaMask connected but sending to Solana - need to use bridge
+      console.log("[Orchestrator] Solana destination detected but MetaMask connected - will use bridge");
+      // Continue to bridge route selection below
+    }
   }
 
   // Step 2: Get bridge routes
