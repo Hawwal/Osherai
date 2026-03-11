@@ -55,7 +55,14 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
   let session = activeSessions.get(sessionId) || createSession(sessionId, walletInfo);
   activeSessions.set(sessionId, session);
 
-  console.log(`[Orchestrator] Session ${sessionId} | State: ${session.state} | Message: "${userMessage}"`);
+  // Update session with latest wallet info from frontend
+  if (walletInfo.address) {
+    session.walletAddress = walletInfo.address;
+    session.walletType = walletInfo.walletType || 'evm';
+    session.chainId = walletInfo.chainId;
+  }
+
+  console.log(`[Orchestrator] Session ${sessionId} | Wallet: ${session.walletType || 'none'} (${session.walletAddress ? session.walletAddress.slice(0,8)+'...' : 'not connected'}) | State: ${session.state} | Message: "${userMessage}"`);
 
   try {
     // ── Handle confirmation/cancellation of pending transactions ──
@@ -150,6 +157,21 @@ async function processTransfer(session, intent) {
   if (chainInfo.unsupported) {
     return {
       message: `⚠️ ${chainInfo.note}`,
+      state: "idle",
+    };
+  }
+
+  // Smart wallet validation: Check if user has wrong wallet connected
+  if (token === "SOL" && session.walletType === 'evm') {
+    return {
+      message: "⚠️ You're trying to send SOL but you have MetaMask connected (Celo network).\n\nTo send SOL, please:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try again",
+      state: "idle",
+    };
+  }
+
+  if ((token === "USDC" || token === "USDT" || token === "CELO") && session.walletType === 'solana') {
+    return {
+      message: "⚠️ You're trying to send Celo tokens but you have Phantom connected (Solana network).\n\nTo send Celo tokens, please:\n1. Click your wallet button\n2. Disconnect Phantom\n3. Connect MetaMask wallet\n4. Try again",
       state: "idle",
     };
   }
@@ -553,12 +575,68 @@ async function registerAlert(session, intent) {
  */
 async function handleQuery(session, intent) {
 
-  // ── Balance check ───────────────────────────────────────────────
+// ── Balance check ───────────────────────────────────────────────
   if (intent.queryType === "balance_check") {
+    const walletType = session.walletType || 'evm';
+    const balances = [];
+
+    // ── SOLANA WALLET (Phantom connected) ────────────────────────
+    if (walletType === 'solana') {
+      if (!config.SOLANA.MASTER_PRIVATE_KEY || config.SOLANA.MASTER_PRIVATE_KEY === "YOUR_SOLANA_PRIVATE_KEY_HERE") {
+        return {
+          message: "Solana wallet not configured. Please set SOLANA_MASTER_PRIVATE_KEY in your environment variables.",
+          state: "idle",
+        };
+      }
+
+      try {
+        const solWallet = getSolanaWallet();
+        const solBalance = await solWallet.getBalance();
+        const splBalances = await solWallet.getAllTokenBalances();
+
+        if (solBalance > 0.001) {
+          balances.push({ symbol: "SOL", amount: solBalance.toFixed(4) });
+        }
+
+        for (const token of splBalances) {
+          balances.push({
+            symbol: token.symbol,
+            amount: token.balance.toFixed(2),
+          });
+        }
+
+        if (balances.length === 0) {
+          const addr = solWallet.getAddress();
+          return {
+            message: `Your Solana wallet is empty.\n\n📬 Address: ${addr}\n\nYou can fund it from an exchange or faucet (devnet: https://faucet.solana.com)`,
+            state: "idle",
+          };
+        }
+
+        const network = config.NETWORK === "testnet" ? "Solana Devnet" : "Solana Mainnet";
+        const addr = solWallet.getAddress();
+        const shortAddr = addr.slice(0, 6) + "..." + addr.slice(-6);
+        const balanceLines = balances.map(b => `• ${b.symbol}: ${b.amount}`).join("\n");
+        
+        return {
+          message: `Here's your Solana wallet balance (${shortAddr}):\n\n${balanceLines}\n\n🌐 Network: ${network}\n\nNeed to send any of them somewhere?`,
+          state: "idle",
+        };
+
+      } catch (err) {
+        console.error("[Orchestrator] Solana balance check failed:", err.message);
+        return {
+          message: "I had trouble fetching your Solana balance. The RPC might be slow or the wallet isn't configured. Try again in a moment.",
+          state: "idle",
+        };
+      }
+    }
+
+    // ── CELO WALLET (MetaMask connected) ──────────────────────────
     try {
       const { ethers } = require("ethers");
-      const rpcUrl    = config.RPC["CELO"];
-      const provider  = new ethers.JsonRpcProvider(rpcUrl);
+      const rpcUrl = config.RPC["CELO"];
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
       
       // Get address from session wallet or agent wallet
       let address = session.walletAddress;
@@ -569,7 +647,7 @@ async function handleQuery(session, intent) {
 
       if (!address) {
         return {
-          message: "I don't have a wallet to check. Please connect your wallet first, or set AGENT_PRIVATE_KEY in your environment variables.",
+          message: "I don't have a wallet to check. Please connect your MetaMask wallet first.",
           state: "idle",
         };
       }
@@ -581,30 +659,6 @@ async function handleQuery(session, intent) {
       ];
 
       const tokens = config.TOKENS.CELO;
-      const balances = [];
-
-  // Also check Solana balance if configured
-    if (config.SOLANA.MASTER_PRIVATE_KEY && config.SOLANA.MASTER_PRIVATE_KEY !== "YOUR_SOLANA_PRIVATE_KEY_HERE") {
-      try {
-        const solWallet = getSolanaWallet();
-        const solBalance = await solWallet.getBalance();
-        const splBalances = await solWallet.getAllTokenBalances();
-
-    if (solBalance > 0.001) {
-      balances.push({ symbol: "SOL", amount: solBalance.toFixed(4), chain: "Solana" });
-    }
-
-    for (const token of splBalances) {
-      balances.push({
-        symbol: token.symbol,
-        amount: token.balance.toFixed(2),
-        chain: "Solana",
-      });
-    }
-  } catch (err) {
-    console.error("[Orchestrator] Solana balance check failed:", err.message);
-  }
-}
 
       // Check native CELO balance
       const celoWei = await provider.getBalance(address);
@@ -631,19 +685,19 @@ async function handleQuery(session, intent) {
         } catch { /* token may not exist on testnet */ }
       }
 
-      const network = config.NETWORK === "testnet" ? "Celo Alfajores (testnet)" : "Celo";
+      const network = config.NETWORK === "testnet" ? "Celo Sepolia (testnet)" : "Celo Mainnet";
       const shortAddr = address.slice(0, 6) + "..." + address.slice(-4);
 
       if (balances.length === 0) {
         return {
-          message: "Your wallet (" + shortAddr + ") on " + network + " has no tokens yet. If you're on testnet, get free CELO from https://faucet.celo.org/alfajores",
+          message: `Your Celo wallet (${shortAddr}) has no tokens yet.\n\n${network === "Celo Sepolia (testnet)" ? "Get free testnet CELO from https://faucet.celo.org/sepolia" : "Fund it from an exchange or another wallet."}`,
           state: "idle",
         };
       }
 
-      const balanceLines = balances.map(b => "• " + b.symbol + ": " + b.amount).join("\n");
+      const balanceLines = balances.map(b => `• ${b.symbol}: ${b.amount}`).join("\n");
       return {
-        message: "Here's your balance on " + network + " (" + shortAddr + "):\n\n" + balanceLines + "\n\nThese are the funds available in your agent wallet. Need to send any of them somewhere?",
+        message: `Here's your Celo wallet balance (${shortAddr}):\n\n${balanceLines}\n\n🌐 Network: ${network}\n\nNeed to send any of them somewhere?`,
         state: "idle",
       };
 
@@ -654,22 +708,6 @@ async function handleQuery(session, intent) {
         state: "idle",
       };
     }
-  }
-
-  // ── Token list query ──────────────────────────────────────────
-  if (intent.queryType === "token_list") {
-    
-    const network = config.NETWORK === "testnet" ? "Celo Sepolia testnet" : "Celo mainnet";
-    const tokens = config.NETWORK === "testnet" 
-      ? "USDC, USDT (limited testnet availability)" 
-      : "USDC, USDT, USDm, CELO";
-    
-    const chains = "Solana, Base, Ethereum, Polygon, Arbitrum, Optimism";
-    
-    return {
-      message: "On " + network + ", I can send:\n\n• **Tokens:** " + tokens + "\n• **To chains:** " + chains + "\n\nJust say something like \"Send 10 USDT to [address] on Base\" and I'll handle the rest!",
-      state: "idle",
-    };
   }
 
   // ── Fee check ───────────────────────────────────────────────────
