@@ -41,6 +41,69 @@ app.post("/api/message", async (req, res) => {
   }
 });
 
+// GET /api/transaction/status — check on-chain tx status
+app.get("/api/transaction/status", async (req, res) => {
+  const { txHash, chain } = req.query;
+  if (!txHash || !chain) {
+    return res.status(400).json({ error: "txHash and chain required" });
+  }
+
+  try {
+    if (chain === 'solana') {
+      // Check Solana transaction
+      const { Connection } = require("@solana/web3.js");
+      const connection = new Connection(config.SOLANA.RPC_URL, "confirmed");
+      
+      const status = await connection.getSignatureStatus(txHash);
+      
+      if (!status.value) {
+        return res.json({ status: 'pending', confirmations: 0 });
+      }
+      
+      if (status.value.err) {
+        return res.json({ status: 'failed', error: status.value.err });
+      }
+      
+      if (status.value.confirmationStatus === 'finalized') {
+        return res.json({ status: 'confirmed', confirmations: 32 }); // Solana finality
+      }
+      
+      return res.json({ 
+        status: 'confirming', 
+        confirmations: status.value.confirmations || 1 
+      });
+      
+    } else {
+      // Check EVM transaction (Celo, Base, etc.)
+      const { ethers } = require("ethers");
+      const rpcUrl = config.RPC[chain.toUpperCase()] || config.RPC.CELO;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      
+      const receipt = await provider.getTransactionReceipt(txHash);
+      
+      if (!receipt) {
+        return res.json({ status: 'pending', confirmations: 0 });
+      }
+      
+      if (receipt.status === 0) {
+        return res.json({ status: 'failed', error: 'Transaction reverted' });
+      }
+      
+      const currentBlock = await provider.getBlockNumber();
+      const confirmations = currentBlock - receipt.blockNumber;
+      
+      if (confirmations >= 3) {
+        return res.json({ status: 'confirmed', confirmations });
+      } else {
+        return res.json({ status: 'confirming', confirmations });
+      }
+    }
+  } catch (err) {
+    console.error('[TX Status] Check failed:', err.message);
+    res.json({ status: 'pending', confirmations: 0 });
+  }
+});
+
 app.get("/api/fees", async (req, res) => {
   const { fromChain = "celo", toChain, token = "USDC", amount = 100 } = req.query;
   if (!toChain) return res.status(400).json({ error: "toChain is required" });

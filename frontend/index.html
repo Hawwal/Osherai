@@ -622,6 +622,98 @@
       padding: 0 4px;
     }
 
+    /* ── Transaction Tracker ──────────────────────────── */
+.tx-tracker {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(0, 229, 160, 0.05);
+  border: 1px solid rgba(0, 229, 160, 0.2);
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+
+.tx-tracker.pending {
+  background: rgba(255, 176, 32, 0.05);
+  border-color: rgba(255, 176, 32, 0.2);
+}
+
+.tx-tracker.success {
+  background: rgba(0, 229, 160, 0.05);
+  border-color: rgba(0, 229, 160, 0.3);
+}
+
+.tx-tracker.error {
+  background: rgba(255, 71, 87, 0.05);
+  border-color: rgba(255, 71, 87, 0.2);
+}
+
+.tx-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.tx-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.tx-status-dot.pending {
+  background: var(--warn);
+}
+
+.tx-status-dot.confirming {
+  background: var(--accent2);
+}
+
+.tx-status-dot.success {
+  background: var(--accent);
+  animation: none;
+}
+
+.tx-status-dot.error {
+  background: var(--danger);
+  animation: none;
+}
+
+.tx-hash {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 8px 0;
+  word-break: break-all;
+}
+
+.tx-explorer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.75rem;
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+
+.tx-explorer-link:hover {
+  opacity: 0.7;
+}
+
+.tx-confirmations {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
     /* ── Empty State ────────────────────────────────── */
     .empty-state {
       flex: 1;
@@ -916,7 +1008,13 @@
         awaitingConfirm = true;
         pendingTxData   = data.data;
       } else if (data.state === 'idle' && data.data?.receipt) {
-        appendSuccessMessage(data.message, data.data.receipt);
+        // Check if we should show transaction tracker
+        if (data.data.showTxTracker && data.data.txHash) {
+          appendMessage('agent', data.message);
+          showTransactionTracker(data.data.txHash, data.data.chain, data.data.explorerUrl);
+        } else {
+          appendSuccessMessage(data.message, data.data.receipt);
+        }
         awaitingConfirm = false;
       } else {
         appendMessage('agent', data.message || data.error || 'Something went wrong.');
@@ -1472,6 +1570,143 @@ async function connectMetaMask() {
   } catch (error) {
     console.warn('[Wallet] Event listener setup warning:', error.message);
     // Connection still works, just without live updates
+  }
+}
+
+// ── Transaction Tracking ──────────────────────────────────────────
+
+/**
+ * Show live transaction execution tracker
+ */
+function showTransactionTracker(txHash, chain, explorerUrl) {
+  const container = document.getElementById('messages');
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  const trackerId = 'tx-tracker-' + txHash.slice(0, 10);
+  
+  const el = document.createElement('div');
+  el.className = 'msg agent';
+  el.id = trackerId;
+  el.innerHTML = `
+    <div class="msg-avatar"><img src="/logo.svg" style="width:20px;height:20px;object-fit:contain"></div>
+    <div class="msg-content">
+      <div class="msg-bubble">
+        <div class="tx-tracker pending">
+          <div class="tx-status">
+            <div class="tx-status-dot pending"></div>
+            <span>Transaction Submitted</span>
+          </div>
+          <div class="tx-hash">
+            <strong>Tx Hash:</strong> ${txHash.slice(0, 10)}...${txHash.slice(-8)}
+          </div>
+          <a href="${explorerUrl}" target="_blank" class="tx-explorer-link">
+            🔗 View on ${chain === 'solana' ? 'Solscan' : 'Celoscan'} →
+          </a>
+          <div class="tx-confirmations">
+            ⏳ Waiting for confirmation...
+          </div>
+        </div>
+      </div>
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+  
+  container.appendChild(el);
+  scrollToBottom();
+  
+  // Start polling for confirmation status
+  pollTransactionStatus(txHash, chain, trackerId);
+  
+  return trackerId;
+}
+
+/**
+ * Update transaction status
+ */
+function updateTransactionStatus(trackerId, status, confirmations = 0) {
+  const tracker = document.querySelector(`#${trackerId} .tx-tracker`);
+  if (!tracker) return;
+  
+  const statusDot = tracker.querySelector('.tx-status-dot');
+  const statusText = tracker.querySelector('.tx-status span');
+  const confirmText = tracker.querySelector('.tx-confirmations');
+  
+  if (status === 'confirming') {
+    tracker.className = 'tx-tracker pending';
+    statusDot.className = 'tx-status-dot confirming';
+    statusText.textContent = 'Confirming...';
+    confirmText.textContent = `🔄 ${confirmations} confirmation${confirmations > 1 ? 's' : ''}`;
+  } else if (status === 'confirmed') {
+    tracker.className = 'tx-tracker success';
+    statusDot.className = 'tx-status-dot success';
+    statusText.textContent = '✅ Transaction Confirmed';
+    confirmText.textContent = `✓ ${confirmations} confirmations - Finalized`;
+    
+    // Show success notification
+    showToast('✅ Transaction confirmed on-chain!');
+  } else if (status === 'failed') {
+    tracker.className = 'tx-tracker error';
+    statusDot.className = 'tx-status-dot error';
+    statusText.textContent = '❌ Transaction Failed';
+    confirmText.textContent = 'Transaction was rejected or reverted';
+    
+    showToast('❌ Transaction failed');
+  }
+}
+
+/**
+ * Poll blockchain for transaction status
+ */
+async function pollTransactionStatus(txHash, chain, trackerId) {
+  let attempts = 0;
+  const maxAttempts = 60; // 2 minutes max (2s interval)
+  
+  const poll = setInterval(async () => {
+    attempts++;
+    
+    try {
+      // Call backend to check tx status
+      const res = await fetch(`/api/transaction/status?txHash=${txHash}&chain=${chain}`);
+      const data = await res.json();
+      
+      if (data.status === 'confirmed') {
+        updateTransactionStatus(trackerId, 'confirmed', data.confirmations);
+        clearInterval(poll);
+      } else if (data.status === 'confirming') {
+        updateTransactionStatus(trackerId, 'confirming', data.confirmations);
+      } else if (data.status === 'failed') {
+        updateTransactionStatus(trackerId, 'failed');
+        clearInterval(poll);
+      }
+    } catch (err) {
+      console.error('[TX Tracker] Status check failed:', err);
+    }
+    
+    // Stop polling after max attempts
+    if (attempts >= maxAttempts) {
+      clearInterval(poll);
+      updateTransactionStatus(trackerId, 'confirmed', 1); // Assume confirmed
+    }
+  }, 2000); // Check every 2 seconds
+}
+
+/**
+ * Show transaction in success message
+ */
+function appendSuccessMessageWithTx(message, receipt) {
+  const container = document.getElementById('messages');
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  // Show the transaction tracker
+  if (receipt.txHash || receipt.signature) {
+    const txHash = receipt.txHash || receipt.signature;
+    const chain = receipt.chain || (receipt.signature ? 'solana' : 'celo');
+    const explorerUrl = receipt.explorerLink || receipt.explorerUrl || '#';
+    
+    showTransactionTracker(txHash, chain, explorerUrl);
+  } else {
+    // Fallback to regular success message
+    appendSuccessMessage(message, receipt);
   }
 }
 

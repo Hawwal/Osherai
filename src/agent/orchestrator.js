@@ -475,9 +475,15 @@ async function executeTransfer(session) {
     session.history.push({ role: "assistant", content: `Transfer submitted: ${transferTxHash}` });
 
     return {
-      message: `✅ Transfer submitted successfully!\n\n📦 **${amount} ${token}** → ${toChain} (${toAddress.slice(0,8)}...)\n🌉 Bridge: ${bridgeQuote.bridge}\n💸 Fee: $${bridgeQuote.feeUSD.toFixed(2)}\n⏱️ Estimated arrival: ${bridgeQuote.estimatedMinutes} minutes\n🔗 Track: ${explorerLink}`,
+      message: `✅ Transfer submitted successfully!\n\n📦 **${amount} ${token}** → ${toChain}\n🌉 Bridge: ${bridgeQuote.bridge}\n💸 Fee: $${bridgeQuote.feeUSD.toFixed(2)}\n⏱️ Est. arrival: ${bridgeQuote.estimatedMinutes} min`,
       state:   "idle",
-      data:    { receipt },
+      data:    { 
+        receipt,
+        showTxTracker: true, // Signal frontend to show tracker
+        txHash: transferTxHash,
+        chain: fromChain,
+        explorerUrl: explorerLink,
+      },
     };
 
   } catch (error) {
