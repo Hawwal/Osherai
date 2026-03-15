@@ -188,22 +188,7 @@ async function processTransfer(session, intent) {
     };
   }
 
-  // Smart wallet validation: Check if user has wrong wallet connected
-  if (token === "SOL" && session.walletType === 'evm') {
-    return {
-      message: "⚠️ You're trying to send SOL but you have MetaMask connected (Celo network).\n\nTo send SOL, please:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try again",
-      state: "idle",
-    };
-  }
-
-  if ((token === "USDC" || token === "USDT" || token === "CELO") && session.walletType === 'solana') {
-    return {
-      message: "⚠️ You're trying to send Celo tokens but you have Phantom connected (Solana network).\n\nTo send Celo tokens, please:\n1. Click your wallet button\n2. Disconnect Phantom\n3. Connect MetaMask wallet\n4. Try again",
-      state: "idle",
-    };
-  }
-
-// Step 1b: Check if this is a native Solana transfer (no bridge needed)
+  // Step 1b: Check if this is a native Solana transfer (no bridge needed)
   const isSolanaAddress = SolanaWallet.isValidAddress(toAddress);
   
   if (isSolanaAddress && toChain === "solana") {
@@ -227,10 +212,22 @@ async function processTransfer(session, intent) {
         state: "awaiting_confirmation",
       };
     } else {
-      // MetaMask connected but sending to Solana - need to use bridge
-      console.log("[Orchestrator] Solana destination detected but MetaMask connected - will use bridge");
-      // Continue to bridge route selection below
+      // MetaMask connected but sending to Solana address - warn user
+      return {
+        message: "⚠️ You're trying to send to a Solana address but you have MetaMask connected (Celo network).\n\nYou have two options:\n\n**Option 1: Use Phantom (Recommended)**\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Send " + amount + " " + token + " directly on Solana (no fees)\n\n**Option 2: Bridge from Celo to Solana**\nThis would require Wormhole bridge (currently unavailable).\n\nWhich would you prefer?",
+        state: "idle",
+      };
     }
+  }
+
+  // Smart wallet validation for cross-chain transfers
+  // Only validate if NOT a Solana-to-Solana native transfer
+  if (toChain !== "solana" && session.walletType === 'solana') {
+    // Phantom connected but trying to send to EVM chains
+    return {
+      message: "⚠️ You're trying to send to " + toChain + " but you have Phantom connected (Solana network).\n\nTo send to " + toChain + ":\n1. Click your wallet button\n2. Disconnect Phantom\n3. Connect MetaMask wallet\n4. Try again",
+      state: "idle",
+    };
   }
 
   // Step 2: Get bridge routes
