@@ -85,9 +85,23 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
         return await processTransfer(session, intent);
 
       case "swap":
+        // Block swap if wrong wallet connected
+        if (session.walletType !== 'solana') {
+          return {
+            message: "⚠️ Token swaps are only available on Solana.\n\nTo swap tokens:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try your swap again",
+            state: "idle",
+          };
+        }
         return await handleSwapIntent(session, intent);
 
       case "defi":
+        // Block DeFi if wrong wallet connected
+        if (session.walletType !== 'solana') {
+          return {
+            message: "⚠️ DeFi operations are only available on Solana.\n\nTo use DeFi:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try again",
+            state: "idle",
+          };
+        }
         return await handleDeFiIntent(session, intent);
 
       case "swap_and_transfer":
@@ -95,11 +109,22 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
 
       case "alert":
         return await registerAlert(session, intent);
-
-      case "conversational":
-        return await handleConversationalMessage(session, intent.originalMessage);
-
-        case "create_wallet": {
+      
+      case "create_wallet": {
+        // Block wallet creation if wrong wallet type
+        if (intent.chain === "solana" && session.walletType === 'evm') {
+          return {
+            message: "⚠️ You're trying to create a Solana wallet but have MetaMask connected.\n\nTo create a Solana wallet:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try again",
+            state: "idle",
+          };
+        }
+        if (intent.chain === "evm" && session.walletType === 'solana') {
+          return {
+            message: "⚠️ You're trying to create an EVM wallet but have Phantom connected.\n\nTo create an EVM wallet:\n1. Click your wallet button\n2. Disconnect Phantom\n3. Connect MetaMask\n4. Try again",
+            state: "idle",
+          };
+        }
+        
         const newWallet = SolanaWallet.generateWalletForUser();
         // Store in database (you'd need to add DB)
         // db.saveUserWallet(sessionId, newWallet);
@@ -112,6 +137,8 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
           state: "idle",
         };
       }
+      case "conversational":
+        return await handleConversationalMessage(session, intent.originalMessage);
 
       case "query":
         return await handleQuery(session, intent);
@@ -215,8 +242,12 @@ async function processTransfer(session, intent) {
     // Check if it's a Solana route with Wormhole not yet installed
     const isSolana = toChain === "solana";
     if (isSolana) {
+      // Log technical error for admin
+      console.error("[Bridge Error] Wormhole SDK not installed. Run: pnpm add @wormhole-foundation/sdk @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana");
+      
+      // Show user-friendly message
       return {
-        message: "I can find routes from Celo to Solana, but the Wormhole bridge SDK needs to be installed on the server. Run: pnpm add @wormhole-foundation/sdk @wormhole-foundation/sdk-evm @wormhole-foundation/sdk-solana — then redeploy. For now, I can transfer " + token + " to any EVM chain (Base, Ethereum, Polygon, Arbitrum) using Axelar or Celer. Want to try one of those instead?",
+        message: "I can transfer " + token + " between most blockchains, but Celo → Solana routes are temporarily unavailable.\n\nI can help you:\n• Transfer to Base, Ethereum, Polygon, or Arbitrum\n• Swap tokens on Solana (if using Phantom)\n• Send within the same network\n\nWant to try a different destination?",
         state: "idle",
         data:  { bridgeWarnings },
       };
@@ -595,17 +626,58 @@ async function handleQuery(session, intent) {
 
     // ── SOLANA WALLET (Phantom connected) ────────────────────────
     if (walletType === 'solana') {
-      if (!config.SOLANA.MASTER_PRIVATE_KEY || config.SOLANA.MASTER_PRIVATE_KEY === "YOUR_SOLANA_PRIVATE_KEY_HERE") {
+      // Use connected wallet address, not agent wallet
+      const connectedAddress = session.walletAddress;
+      
+      if (!connectedAddress) {
         return {
-          message: "Solana wallet not configured. Please set SOLANA_MASTER_PRIVATE_KEY in your environment variables.",
+          message: "I can't detect your connected Phantom wallet. Please make sure Phantom is connected and try again.",
           state: "idle",
         };
       }
 
       try {
-        const solWallet = getSolanaWallet();
-        const solBalance = await solWallet.getBalance();
-        const splBalances = await solWallet.getAllTokenBalances();
+        // Check balance of user's connected wallet
+        const { Connection, PublicKey, LAMPORTS_PER_SOL } = require("@solana/web3.js");
+        const { TOKEN_PROGRAM_ID } = require("@solana/spl-token");
+        const connection = new Connection(config.SOLANA.RPC_URL, "confirmed");
+        
+        // Get SOL balance
+        const publicKey = new PublicKey(connectedAddress);
+        const lamports = await connection.getBalance(publicKey);
+        const solBalance = lamports / LAMPORTS_PER_SOL;
+        
+        if (solBalance > 0.001) {
+          balances.push({ symbol: "SOL", amount: solBalance.toFixed(4) });
+        }
+
+        // Get SPL token balances
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+          publicKey,
+          { programId: TOKEN_PROGRAM_ID }
+        );
+
+        for (const { account } of tokenAccounts.value) {
+          const parsed = account.data.parsed.info;
+          const balance = Number(parsed.tokenAmount.amount) / Math.pow(10, parsed.tokenAmount.decimals);
+          
+          if (balance > 0) {
+            // Get token symbol
+            let symbol = "UNKNOWN";
+            const knownTokens = config.SOLANA.TOKENS;
+            for (const [sym, addr] of Object.entries(knownTokens)) {
+              if (addr === parsed.mint) {
+                symbol = sym;
+                break;
+              }
+            }
+            
+            balances.push({
+              symbol,
+              amount: balance.toFixed(2),
+            });
+          }
+        }
 
         if (solBalance > 0.001) {
           balances.push({ symbol: "SOL", amount: solBalance.toFixed(4) });
@@ -1010,7 +1082,13 @@ Available features:
  */
 async function handleSwapIntent(session, intent) {
   const { fromToken, toToken, amount } = intent;
-  
+  // Block swap if wrong wallet connected
+  if (session.walletType !== 'solana') {
+    return {
+      message: "⚠️ Token swaps are only available on Solana.\n\nTo swap tokens:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try your swap again",
+      state: "idle",
+    };
+  }
   // Only support Solana swaps currently
   if (intent.chain !== "solana") {
     return {
@@ -1070,7 +1148,17 @@ async function handleSwapIntent(session, intent) {
  * Handle DeFi operations (staking, liquidity provision)
  */
 async function handleDeFiIntent(session, intent) {
-  const { operation, protocol, chain } = intent;
+  const { operation, protocol, amount, token } = intent;
+
+  // Block DeFi if wrong wallet connected
+  if (session.walletType !== 'solana') {
+    return {
+      message: "⚠️ DeFi operations are only available on Solana.\n\nTo use DeFi:\n1. Click your wallet button\n2. Disconnect MetaMask\n3. Connect Phantom wallet\n4. Try again",
+      state: "idle",
+    };
+  }
+
+  console.log(`[DeFi] ${operation} on ${protocol}: ${amount} ${token}`);
 
   // Only support Solana DeFi currently
   if (chain !== "solana") {

@@ -234,9 +234,26 @@ function localParseIntent(message) {
   }
 
   // Balance query intent — catch BEFORE fee check
-  const balanceWords = ["balance", "wallet balance", "how much do i have", "my funds",
-                        "my usdt", "my usdc", "my tokens", "my celo", "what do i have",
-                        "show balance", "check balance", "how much have i got"];
+  const balanceWords = [
+    "balance", 
+    "wallet balance",
+    "how much do i have", 
+    "how much money",
+    "what's in my wallet",
+    "whats in my wallet",
+    "check my wallet",
+    "my funds",
+    "my usdt", 
+    "my usdc", 
+    "my tokens", 
+    "my celo", 
+    "what do i have",
+    "show balance", 
+    "check balance", 
+    "show my balance",
+    "connected wallet balance",
+    "how much have i got"
+  ];
   if (balanceWords.some(w => msg.includes(w))) {
     return {
       type:      "query",
