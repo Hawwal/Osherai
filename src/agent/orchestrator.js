@@ -400,31 +400,22 @@ if (session.pendingTransfer?.type === "solana_native") {
 }
 
   if (session.pendingTransfer?.type === "solana_swap") {
-    const { wallet, quote } = session.pendingTransfer;
-    const { executeSwap } = require("../solana/jupiterSwap");
+    const { fromToken, toToken, amount } = session.pendingTransfer;
     
-    try {
-      const receipt = await executeSwap({ wallet, quote });
-      
-      const successMsg = `✅ Swap completed!\n\n` +
-        `📦 **${receipt.inputAmount} ${receipt.inputToken}** → **${receipt.outputAmount.toFixed(4)} ${receipt.outputToken}**\n` +
-        `💹 Price impact: ${receipt.priceImpact.toFixed(2)}%\n` +
-        `🔗 ${receipt.signature}`;
-
-      session.state = "idle";
-      session.pendingTransfer = null;
-
-      return {
-        message: successMsg,
-        state: "idle",
-      };
-    } catch (error) {
-      session.state = "idle";
-      return {
-        message: `❌ Swap failed: ${error.message}`,
-        state: "error",
-      };
-    }
+    // Return swap data for frontend to execute with Jupiter
+    return {
+      message: "⏳ Preparing swap...\n\nPlease approve the swap transaction in your Phantom wallet when prompted.",
+      state: "awaiting_signature",
+      data: {
+        action: "executeJupiterSwap",
+        swap: {
+          fromToken,
+          toToken,
+          amount,
+          fromAddress: session.walletAddress,
+        }
+      },
+    };
   }
 
   // Standard bridge transfer execution
@@ -1069,6 +1060,7 @@ Available features:
  */
 async function handleSwapIntent(session, intent) {
   const { fromToken, toToken, amount } = intent;
+  
   // Block swap if wrong wallet connected
   if (session.walletType !== 'solana') {
     return {
@@ -1076,6 +1068,7 @@ async function handleSwapIntent(session, intent) {
       state: "idle",
     };
   }
+  
   // Only support Solana swaps currently
   if (intent.chain !== "solana") {
     return {
@@ -1084,51 +1077,19 @@ async function handleSwapIntent(session, intent) {
     };
   }
 
-  const solWallet = getSolanaWallet();
-  
-  try {
-    // Get quote
-    const result = await swapTokens({
-      wallet: solWallet,
-      fromToken,
-      toToken,
-      amount,
-    });
+  // Return swap data for frontend to execute with Jupiter
+  session.state = "awaiting_confirmation";
+  session.pendingTransfer = {
+    type: "solana_swap",
+    fromToken,
+    toToken,
+    amount,
+  };
 
-    if (result.needsConfirmation) {
-      session.state = "awaiting_confirmation";
-      session.pendingTransfer = {
-        type: "solana_swap",
-        wallet: solWallet,
-        quote: result.quote,
-      };
-
-      return {
-        message: result.message,
-        state: "awaiting_confirmation",
-      };
-    }
-
-    // Swap executed immediately (small amount or low price impact)
-    const receipt = result.receipt;
-    const successMsg = `✅ Swap completed!\n\n` +
-      `📦 **${receipt.inputAmount} ${receipt.inputToken}** → **${receipt.outputAmount.toFixed(4)} ${receipt.outputToken}**\n` +
-      `💹 Price impact: ${receipt.priceImpact.toFixed(2)}%\n` +
-      `🔗 ${receipt.signature}\n` +
-      `🌐 ${receipt.explorerUrl}`;
-
-    return {
-      message: successMsg,
-      state: "idle",
-      data: { receipt },
-    };
-  } catch (error) {
-    logger.error("Orchestrator", "Solana swap failed", { error: error.message });
-    return {
-      message: `❌ Swap failed: ${error.message}`,
-      state: "error",
-    };
-  }
+  return {
+    message: `🔄 Swap Preview:\n\n**${amount} ${fromToken}** → **${toToken}**\n\nI'll fetch the best rate from Jupiter when you confirm.\n\nReply YES to proceed with the swap.`,
+    state: "awaiting_confirmation",
+  };
 }
 
 /**
@@ -1183,7 +1144,6 @@ async function handleDeFiIntent(session, intent) {
 
 /**
  * Handle transaction completion from frontend wallet signing
- * Verifies transaction on-chain and updates session
  */
 async function handleTransactionComplete(sessionId, txData) {
   const session = activeSessions.get(sessionId);
@@ -1215,7 +1175,7 @@ async function handleTransactionComplete(sessionId, txData) {
 
       return {
         success: true,
-        message: `✅ Transfer successful!\n\n📦 **${amount} ${token}** sent on Solana\n🔗 Signature: ${signature}\n🌐 https://solscan.io/tx/${signature}`,
+        message: `✅ Transfer successful!\n\n📦 **${amount} ${token}** sent on Solana\n🔗 Signature: ${signature.slice(0, 10)}...${signature.slice(-10)}\n🌐 https://solscan.io/tx/${signature}`,
       };
 
     } else {
@@ -1247,9 +1207,6 @@ async function handleTransactionComplete(sessionId, txData) {
   }
 }
 
-/**
- * Get blockchain explorer URL for transaction
- */
 function getExplorerUrl(chain, txHash) {
   const explorers = {
     celo: `https://celoscan.io/tx/${txHash}`,
@@ -1257,7 +1214,6 @@ function getExplorerUrl(chain, txHash) {
     base: `https://basescan.org/tx/${txHash}`,
     polygon: `https://polygonscan.com/tx/${txHash}`,
     arbitrum: `https://arbiscan.io/tx/${txHash}`,
-    optimism: `https://optimistic.etherscan.io/tx/${txHash}`,
   };
   return explorers[chain.toLowerCase()] || `https://celoscan.io/tx/${txHash}`;
 }

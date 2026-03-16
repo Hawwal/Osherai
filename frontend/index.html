@@ -1010,6 +1010,8 @@
           await signSolanaTransfer(data.data.transfer);
         } else if (data.data.action === 'signEvmTransfer') {
           await signEvmTransfer(data.data.transfer);
+        } else if (data.data.action === 'executeJupiterSwap') {
+          await executeJupiterSwap(data.data.swap);
         }
         return; // Don't process further
         }
@@ -1810,9 +1812,17 @@ async function signSolanaTransfer(transferData) {
     // Dynamic import of Solana web3 (loaded from CDN)
     const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = window.solanaWeb3;
     
+    // Get Solana RPC URL (configure this!)
+    // IMPORTANT: Replace this with your QuickNode URL to avoid 403 errors!
+    // Get your URL from: https://dashboard.quicknode.com
+    const SOLANA_RPC_URL = 'https://floral-omniscient-isle.solana-mainnet.quiknode.pro/16c07372d68a894239b6bfc66d78d343900eb675/'; // ⚠️ UPDATE THIS WITH YOUR QUICKNODE URL
+    
+    // Example QuickNode URL format:
+    // const SOLANA_RPC_URL = 'https://small-wild-tree.solana-mainnet.quiknode.pro/abc123xyz/';
+    
     // Connect to Solana
     const connection = new Connection(
-      'https://floral-omniscient-isle.solana-mainnet.quiknode.pro/16c07372d68a894239b6bfc66d78d343900eb675/', // Use your QuickNode URL here
+      SOLANA_RPC_URL,
       'confirmed'
     );
     
@@ -2022,6 +2032,132 @@ async function signEvmTransfer(transferData) {
     showToast('❌ Transfer failed');
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// JUPITER SWAP EXECUTION (Phantom)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Execute Jupiter swap with Phantom signature
+ */
+async function executeJupiterSwap(swapData) {
+  const { fromToken, toToken, amount, fromAddress } = swapData;
+  
+  try {
+    showToast('🔄 Fetching best swap rate from Jupiter...');
+    
+    const provider = window.phantom?.solana;
+    if (!provider || !provider.isConnected) {
+      throw new Error("Phantom wallet not connected. Please connect and try again.");
+    }
+
+    const { Connection, PublicKey, VersionedTransaction } = window.solanaWeb3;
+    
+    // Connect to Solana (use same RPC as transfers)
+    const SOLANA_RPC_URL = 'YOUR_QUICKNODE_URL_HERE'; // IMPORTANT: Update this with your QuickNode URL (same as line 1815)
+    const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
+    
+    // Token mint addresses
+    const tokenMints = {
+      'SOL': 'So11111111111111111111111111111111111111112',
+      'USDC': 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      'USDT': 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+      'USDS': 'USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA',
+    };
+    
+    const inputMint = tokenMints[fromToken];
+    const outputMint = tokenMints[toToken];
+    
+    if (!inputMint || !outputMint) {
+      throw new Error(`Token ${fromToken} or ${toToken} not supported`);
+    }
+    
+    // Convert amount to lamports/smallest unit
+    let amountLamports;
+    if (fromToken === 'SOL') {
+      amountLamports = Math.floor(parseFloat(amount) * 1_000_000_000); // 9 decimals
+    } else {
+      amountLamports = Math.floor(parseFloat(amount) * 1_000_000); // 6 decimals (USDC/USDT)
+    }
+    
+    // Step 1: Get quote from Jupiter
+    const quoteResponse = await fetch(
+      `https://quote-api.jup.ag/v6/quote?` +
+      `inputMint=${inputMint}&` +
+      `outputMint=${outputMint}&` +
+      `amount=${amountLamports}&` +
+      `slippageBps=50` // 0.5% slippage
+    );
+    
+    if (!quoteResponse.ok) {
+      throw new Error('Failed to get quote from Jupiter');
+    }
+    
+    const quoteData = await quoteResponse.json();
+    
+    // Calculate output amount for display
+    const outputDecimals = toToken === 'SOL' ? 9 : 6;
+    const outputAmount = (parseInt(quoteData.outAmount) / Math.pow(10, outputDecimals)).toFixed(4);
+    const priceImpact = quoteData.priceImpactPct || 0;
+    
+    showToast(`💹 Rate: ${amount} ${fromToken} → ${outputAmount} ${toToken}`);
+    
+    // Step 2: Get swap transaction from Jupiter
+    const swapResponse = await fetch('https://quote-api.jup.ag/v6/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteResponse: quoteData,
+        userPublicKey: fromAddress,
+        wrapAndUnwrapSol: true,
+        dynamicComputeUnitLimit: true,
+        prioritizationFeeLamports: 'auto',
+      }),
+    });
+    
+    if (!swapResponse.ok) {
+      throw new Error('Failed to get swap transaction from Jupiter');
+    }
+    
+    const { swapTransaction } = await swapResponse.json();
+    
+    // Step 3: Deserialize the transaction
+    const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+    const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+    
+    showToast('⏳ Waiting for approval in Phantom...');
+    
+    // Step 4: Sign and send with Phantom
+    const signed = await provider.signAndSendTransaction(transaction);
+    const signature = signed.signature;
+
+    showToast('⏳ Confirming swap...');
+    
+    // Step 5: Wait for confirmation
+    await connection.confirmTransaction(signature, 'confirmed');
+
+    // Step 6: Display success
+    const successMsg = `✅ Swap completed!\n\n` +
+      `📦 ${amount} ${fromToken} → ${outputAmount} ${toToken}\n` +
+      `💹 Price impact: ${priceImpact.toFixed(2)}%\n` +
+      `🔗 https://solscan.io/tx/${signature}`;
+    
+    appendMessage('agent', successMsg);
+    showToast('✅ Swap successful!');
+    
+  } catch (error) {
+    console.error('[Jupiter Swap] Failed:', error);
+    
+    let errorMsg = error.message;
+    if (error.message.includes('User rejected')) {
+      errorMsg = 'Swap cancelled by user.';
+    }
+    
+    appendMessage('agent', `❌ Swap failed: ${errorMsg}`);
+    showToast('❌ Swap failed');
+  }
+}
+
   // ── Init ──────────────────────────────────────────────────────────
   initNetworkBadge();
   loadFees();
