@@ -1890,7 +1890,7 @@ async function signSolanaTransfer(transferData) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sessionId: sessionId,
+        sessionId: SESSION_ID,
         signature: signature,
         token: token,
         amount: amount,
@@ -1993,7 +1993,7 @@ async function signEvmTransfer(transferData) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sessionId: sessionId,
+        sessionId: SESSION_ID,
         txHash: txHash,
         token: token,
         amount: amount,
