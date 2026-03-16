@@ -676,28 +676,15 @@ async function handleQuery(session, intent) {
           }
         }
 
-        if (solBalance > 0.001) {
-          balances.push({ symbol: "SOL", amount: solBalance.toFixed(4) });
-        }
-
-        for (const token of splBalances) {
-          balances.push({
-            symbol: token.symbol,
-            amount: token.balance.toFixed(2),
-          });
-        }
-
         if (balances.length === 0) {
-          const addr = solWallet.getAddress();
           return {
-            message: `Your Solana wallet is empty.\n\n📬 Address: ${addr}\n\nYou can fund it from an exchange or faucet (devnet: https://faucet.solana.com)`,
+            message: `Your Solana wallet is empty.\n\n📬 Address: ${connectedAddress}\n\nYou can fund it from an exchange or use the Solana faucet.`,
             state: "idle",
           };
         }
 
         const network = config.NETWORK === "testnet" ? "Solana Devnet" : "Solana Mainnet";
-        const addr = solWallet.getAddress();
-        const shortAddr = addr.slice(0, 6) + "..." + addr.slice(-6);
+        const shortAddr = connectedAddress.slice(0, 6) + "..." + connectedAddress.slice(-6);
         const balanceLines = balances.map(b => `• ${b.symbol}: ${b.amount}`).join("\n");
         
         return {
@@ -707,8 +694,17 @@ async function handleQuery(session, intent) {
 
       } catch (err) {
         console.error("[Orchestrator] Solana balance check failed:", err.message);
+        
+        // More detailed error for debugging
+        if (err.message.includes("Invalid public key")) {
+          return {
+            message: "The wallet address format is invalid. Please reconnect your Phantom wallet and try again.",
+            state: "idle",
+          };
+        }
+        
         return {
-          message: "I had trouble fetching your Solana balance. The RPC might be slow or the wallet isn't configured. Try again in a moment.",
+          message: "I had trouble fetching your Solana balance. The RPC might be slow or the wallet isn't configured. Try again in a moment.\n\nDebug info: " + err.message,
           state: "idle",
         };
       }
