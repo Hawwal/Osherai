@@ -369,41 +369,35 @@ async function handleConfirmation(session, userMessage) {
  */
 async function executeTransfer(session) {
   // Handle Solana native transfers and swaps
-  if (session.pendingTransfer?.type === "solana_native") {
-    const { wallet, intent } = session.pendingTransfer;
+if (session.pendingTransfer?.type === "solana_native") {
+  try {
+    const { intent } = session.pendingTransfer;
     
-    try {
-      const receipt = await executeSolanaTransfer({ wallet, intent, amount: intent.amount });
-      
-      const successMsg = `✅ Transfer successful!\n\n` +
-        `📦 **${receipt.amount} ${receipt.token}** → Solana\n` +
-        `🔗 Transaction: ${receipt.signature}\n` +
-        `🌐 Explorer: ${receipt.explorerUrl}`;
-
-      session.state = "idle";
-      session.pendingTransfer = null;
-
-      logger.transfer("Orchestrator", "Solana transfer completed", {
-        signature: receipt.signature,
-        token: receipt.token,
-        amount: receipt.amount,
-      });
-
-      return {
-        message: successMsg,
-        state: "idle",
-        data: { receipt },
-      };
-    } catch (error) {
-      session.state = "idle";
-      logger.error("Orchestrator", "Solana transfer failed", { error: error.message });
-      
-      return {
-        message: `❌ Solana transfer failed: ${error.message}`,
-        state: "error",
-      };
-    }
+    // Return transaction data for frontend to execute with Phantom
+    return {
+      message: "⏳ Preparing Solana transaction...\n\nPlease approve in your Phantom wallet when prompted.",
+      state: "awaiting_signature",
+      data: {
+        action: "signSolanaTransfer",
+        transfer: {
+          type: "native",
+          token: intent.token,
+          amount: intent.amount,
+          toAddress: intent.toAddress,
+          fromAddress: session.walletAddress,
+        }
+      },
+    };
+  } catch (error) {
+    session.state = "idle";
+    logger.error("Orchestrator", "Solana transfer failed", { error: error.message });
+    
+    return {
+      message: `❌ Solana transfer failed: ${error.message}`,
+      state: "error",
+    };
   }
+}
 
   if (session.pendingTransfer?.type === "solana_swap") {
     const { wallet, quote } = session.pendingTransfer;
@@ -1187,7 +1181,89 @@ async function handleDeFiIntent(session, intent) {
   }
 }
 
+/**
+ * Handle transaction completion from frontend wallet signing
+ * Verifies transaction on-chain and updates session
+ */
+async function handleTransactionComplete(sessionId, txData) {
+  const session = activeSessions.get(sessionId);
+  if (!session) {
+    return { success: false, error: "Session not found" };
+  }
+
+  const { signature, txHash, token, amount, chain } = txData;
+
+  // Verify transaction on-chain
+  try {
+    if (chain === 'solana') {
+      // Verify Solana transaction
+      const { Connection } = require("@solana/web3.js");
+      const connection = new Connection(config.SOLANA.RPC_URL, "confirmed");
+      
+      const tx = await connection.getTransaction(signature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0
+      });
+
+      if (!tx || tx.meta?.err) {
+        return { success: false, error: "Transaction failed or not found" };
+      }
+
+      // Success!
+      session.state = "idle";
+      session.pendingTransfer = null;
+
+      return {
+        success: true,
+        message: `✅ Transfer successful!\n\n📦 **${amount} ${token}** sent on Solana\n🔗 Signature: ${signature}\n🌐 https://solscan.io/tx/${signature}`,
+      };
+
+    } else {
+      // Verify EVM transaction (Celo, Ethereum, etc.)
+      const { ethers } = require("ethers");
+      const rpcUrl = config.RPC[chain.toUpperCase()] || config.RPC.CELO;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+      const receipt = await provider.getTransactionReceipt(txHash);
+      
+      if (!receipt || receipt.status === 0) {
+        return { success: false, error: "Transaction failed or not found" };
+      }
+
+      // Success!
+      session.state = "idle";
+      session.pendingTransfer = null;
+
+      const explorerUrl = getExplorerUrl(chain, txHash);
+
+      return {
+        success: true,
+        message: `✅ Transfer successful!\n\n📦 **${amount} ${token}** sent on ${chain}\n🔗 Tx: ${txHash.slice(0, 10)}...${txHash.slice(-8)}\n🌐 ${explorerUrl}`,
+      };
+    }
+  } catch (error) {
+    console.error("[Transaction Verify] Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get blockchain explorer URL for transaction
+ */
+function getExplorerUrl(chain, txHash) {
+  const explorers = {
+    celo: `https://celoscan.io/tx/${txHash}`,
+    ethereum: `https://etherscan.io/tx/${txHash}`,
+    base: `https://basescan.org/tx/${txHash}`,
+    polygon: `https://polygonscan.com/tx/${txHash}`,
+    arbitrum: `https://arbiscan.io/tx/${txHash}`,
+    optimism: `https://optimistic.etherscan.io/tx/${txHash}`,
+  };
+  return explorers[chain.toLowerCase()] || `https://celoscan.io/tx/${txHash}`;
+}
+
 module.exports = {
   handleUserMessage,
+  handleTransactionComplete,
   activeSessions,
 };

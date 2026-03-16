@@ -378,6 +378,7 @@ function localParseIntent(message) {
 }
 
 function extractToken(msg) {
+  if (msg.includes("sol ") || msg.includes(" sol")) return "SOL";  // Must come before usdc check
   if (msg.includes("usdm")) return "USDm";
   if (msg.includes("usdt")) return "USDT";
   if (msg.includes("usdc")) return "USDC";

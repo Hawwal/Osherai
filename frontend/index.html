@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Osher AI — Cross-Chain Transfer Agent</title>
@@ -1002,6 +1003,16 @@
       const data = await res.json();
       removeThinking(thinkingId);
 
+      if (data.state === 'awaiting_signature' && data.data?.action) {
+        // Backend wants frontend to sign transaction
+        appendMessage('agent', data.message);
+        if (data.data.action === 'signSolanaTransfer') {
+          await signSolanaTransfer(data.data.transfer);
+        } else if (data.data.action === 'signEvmTransfer') {
+          await signEvmTransfer(data.data.transfer);
+        }
+        return; // Don't process further
+        }
       // Handle response
       if (data.state === 'awaiting_confirmation' && data.data) {
         appendAgentMessageWithCard(data.message, data.data);
@@ -1782,6 +1793,235 @@ function closeWalletModal() {
   if (modal) modal.remove();
 }
 
+/**
+ * Execute Solana transfer with Phantom signature
+ */
+async function signSolanaTransfer(transferData) {
+  const { token, amount, toAddress, fromAddress } = transferData;
+  
+  try {
+    showToast('Opening Phantom wallet...');
+    
+    const provider = window.phantom?.solana;
+    if (!provider || !provider.isConnected) {
+      throw new Error("Phantom wallet not connected. Please connect and try again.");
+    }
+
+    // Dynamic import of Solana web3 (loaded from CDN)
+    const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = window.solanaWeb3;
+    
+    // Connect to Solana
+    const connection = new Connection(
+      'https://api.mainnet-beta.solana.com', // Use your QuickNode URL here
+      'confirmed'
+    );
+    
+    // Get latest blockhash
+    const { blockhash } = await connection.getLatestBlockhash();
+    
+    // Create transaction
+    const transaction = new Transaction({
+      feePayer: new PublicKey(fromAddress),
+      recentBlockhash: blockhash,
+    });
+
+    if (token === "SOL") {
+      // Native SOL transfer
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: new PublicKey(fromAddress),
+          toPubkey: new PublicKey(toAddress),
+          lamports: Math.floor(parseFloat(amount) * LAMPORTS_PER_SOL),
+        })
+      );
+    } else {
+      // SPL Token transfer (USDC, USDT, etc.)
+      const { 
+        TOKEN_PROGRAM_ID, 
+        createTransferInstruction, 
+        getAssociatedTokenAddress 
+      } = window.solanaWeb3;
+      
+      // Token mint addresses
+      const tokenMints = {
+        'USDC': 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        'USDT': 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+      };
+      
+      const mintAddress = new PublicKey(tokenMints[token]);
+      const decimals = 6; // USDC/USDT use 6 decimals
+      
+      // Get associated token accounts
+      const fromTokenAccount = await getAssociatedTokenAddress(
+        mintAddress,
+        new PublicKey(fromAddress)
+      );
+      
+      const toTokenAccount = await getAssociatedTokenAddress(
+        mintAddress,
+        new PublicKey(toAddress)
+      );
+      
+      transaction.add(
+        createTransferInstruction(
+          fromTokenAccount,
+          toTokenAccount,
+          new PublicKey(fromAddress),
+          Math.floor(parseFloat(amount) * Math.pow(10, decimals)),
+          [],
+          TOKEN_PROGRAM_ID
+        )
+      );
+    }
+
+    // Sign and send with Phantom
+    showToast('⏳ Waiting for approval in Phantom...');
+    
+    const signed = await provider.signAndSendTransaction(transaction);
+    const signature = signed.signature;
+
+    showToast('⏳ Confirming transaction...');
+    
+    // Wait for confirmation
+    await connection.confirmTransaction(signature, 'confirmed');
+
+    // Notify backend of completion
+    const response = await fetch('/api/transaction-complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: sessionId,
+        signature: signature,
+        token: token,
+        amount: amount,
+        chain: 'solana',
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      appendMessage('agent', result.message);
+      showToast('✅ Transaction confirmed!');
+    } else {
+      throw new Error(result.error || 'Verification failed');
+    }
+    
+  } catch (error) {
+    console.error('[Solana Transfer] Failed:', error);
+    
+    let errorMsg = error.message;
+    if (error.message.includes('User rejected')) {
+      errorMsg = 'Transaction cancelled by user.';
+    }
+    
+    appendMessage('agent', `❌ Transfer failed: ${errorMsg}`);
+    showToast('❌ Transfer failed');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// EVM TRANSACTION SIGNING (MetaMask for Celo/Ethereum/etc)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Execute EVM transfer with MetaMask signature
+ */
+async function signEvmTransfer(transferData) {
+  const { fromChain, toChain, token, amount, toAddress, fromAddress, bridge } = transferData;
+  
+  try {
+    showToast('Opening MetaMask...');
+    
+    if (!window.ethereum) {
+      throw new Error("MetaMask not detected. Please install MetaMask.");
+    }
+
+    // Token contract addresses (update these based on your config)
+    const tokenAddresses = {
+      'USDC': '0xcebA9300f2b948710d2653dD7B07f33A8B32118C', // Celo USDC
+      'USDT': '0x617f3112bf5397D0467D315cC709EF968D9ba546', // Celo USDT
+      'CELO': '0x471EcE3750Da237f93B8E339c536989b8978a438', // Wrapped CELO
+    };
+
+    const tokenAddress = tokenAddresses[token];
+    
+    // ERC-20 Transfer function selector
+    const transferSelector = '0xa9059cbb';
+    
+    // Encode the transfer parameters
+    const paddedAddress = toAddress.slice(2).padStart(64, '0');
+    const amountWei = (parseFloat(amount) * 1e6).toString(16).padStart(64, '0'); // 6 decimals for USDC/USDT
+    const data = transferSelector + paddedAddress + amountWei;
+
+    // Prepare transaction
+    const txParams = {
+      from: fromAddress,
+      to: tokenAddress,
+      data: data,
+      value: '0x0',
+    };
+
+    showToast('⏳ Waiting for approval in MetaMask...');
+    
+    // Request signature from MetaMask
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [txParams],
+    });
+
+    showToast('⏳ Confirming transaction...');
+
+    // Wait for transaction to be mined
+    let receipt = null;
+    let attempts = 0;
+    while (!receipt && attempts < 60) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      });
+      attempts++;
+    }
+
+    if (!receipt || receipt.status === '0x0') {
+      throw new Error('Transaction failed or reverted');
+    }
+
+    // Notify backend of completion
+    const response = await fetch('/api/transaction-complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: sessionId,
+        txHash: txHash,
+        token: token,
+        amount: amount,
+        chain: fromChain,
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      appendMessage('agent', result.message);
+      showToast('✅ Transaction confirmed!');
+    } else {
+      throw new Error(result.error || 'Verification failed');
+    }
+    
+  } catch (error) {
+    console.error('[EVM Transfer] Failed:', error);
+    
+    let errorMsg = error.message;
+    if (error.message.includes('User rejected') || error.code === 4001) {
+      errorMsg = 'Transaction cancelled by user.';
+    }
+    
+    appendMessage('agent', `❌ Transfer failed: ${errorMsg}`);
+    showToast('❌ Transfer failed');
+  }
+}
   // ── Init ──────────────────────────────────────────────────────────
   initNetworkBadge();
   loadFees();

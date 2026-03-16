@@ -40,7 +40,43 @@ app.post("/api/message", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.post("/api/transaction-complete", async (req, res) => {
+  const { sessionId, signature, txHash, token, amount, chain } = req.body;
+  
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId required" });
+  }
 
+  try {
+    const { handleTransactionComplete } = require("./src/agent/orchestrator");
+    
+    const result = await handleTransactionComplete(sessionId, {
+      signature: signature || txHash, // Solana uses signature, EVM uses txHash
+      txHash,
+      token,
+      amount,
+      chain,
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (err) {
+    console.error("[Transaction Complete] Error:", err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
 // GET /api/transaction/status — check on-chain tx status
 app.get("/api/transaction/status", async (req, res) => {
   const { txHash, chain } = req.query;
