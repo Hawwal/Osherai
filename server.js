@@ -29,6 +29,11 @@ app.use(cors({ origin: config.SERVER.CORS_ORIGIN }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "frontend")));
 
+app.get("/.well-known/agent-registration.json", (req, res) => {
+  res.type("application/json");
+  res.sendFile(path.join(__dirname, "frontend", "agent-registration.json"));
+});
+
 // ── Agent API ─────────────────────────────────────────────────────
 
 app.post("/api/message", async (req, res) => {
