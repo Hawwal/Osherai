@@ -9,6 +9,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:celo": "hardhat run scripts/deploy-celo.js --network celo",
+    "deploy:vault:alfajores": "hardhat run scripts/deploy-savings-vault.js --network alfajores",
+    "deploy:vault:celo": "hardhat run scripts/deploy-savings-vault.js --network celo",
     "verify:celo": "hardhat run scripts/verify-celo.js --network celo",
     "fees:withdraw": "hardhat run scripts/withdraw-fees.js --network celo"
   },

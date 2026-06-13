@@ -54,7 +54,7 @@ TYPE 2 - Alert:
 TYPE 3 - Query:
 {
   "type": "query",
-  "queryType": "balance_check" | "price_check" | "fee_check",
+  "queryType": "balance_check" | "price_check" | "fee_check" | "goals_check",
   "token": "USDT" | "USDC" | "USDm" | "CELO" | "all",
   "chain": "celo"
 }
@@ -181,6 +181,23 @@ function localParseIntent(message) {
     "thank you",
   ];
   const isConversational = conversationalWords.some(w => msg.includes(w)) || msg.length < 10;
+
+  const goalQueryWords = [
+    "show my goals",
+    "my goals",
+    "active goals",
+    "savings goals",
+    "goal progress",
+    "dashboard",
+  ];
+  if (goalQueryWords.some(w => msg.includes(w)) && !msg.includes("save ")) {
+    return {
+      type: "query",
+      queryType: "goals_check",
+      token: "USDT",
+      chain: "celo",
+    };
+  }
 
   const savingsWords = [
     "save",

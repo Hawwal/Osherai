@@ -37,6 +37,79 @@
         "IERC20",
         "OsherMonitor"
       ]
+    },
+    "/Users/user/Osherai/contracts/OsherSavingsVault.sol": {
+      "lastModificationDate": 1781364010102,
+      "contentHash": "97d1ef67cef6f89ba71455be15b0a0e3",
+      "sourceName": "contracts/OsherSavingsVault.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC20Vault",
+        "OsherSavingsVault"
+      ]
+    },
+    "/Users/user/Osherai/contracts/test/MockERC20.sol": {
+      "lastModificationDate": 1781364051704,
+      "contentHash": "1e16590d6d13d19b9ad43daa01ff0a4f",
+      "sourceName": "contracts/test/MockERC20.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "MockERC20"
+      ]
     }
   }
 }

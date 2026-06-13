@@ -210,6 +210,101 @@
       line-height: 1.55;
     }
 
+    .display-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(7, 17, 13, 0.35);
+    }
+
+    .display-toggle button {
+      border: 0;
+      min-height: 34px;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.76rem;
+    }
+
+    .display-toggle button.active {
+      background: var(--accent);
+      color: #052016;
+      font-weight: 800;
+    }
+
+    .goal-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .goal-card {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .goal-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .goal-name {
+      font-weight: 800;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .goal-category {
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .goal-amount {
+      font-family: "Syne", sans-serif;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    .goal-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(238, 248, 241, 0.1);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: inherit;
+    }
+
     .chat-panel {
       min-height: calc(100vh - 104px);
       border-radius: 10px;
@@ -520,9 +615,21 @@
         <h2>Quick Actions</h2>
         <div class="quick-grid">
           <button class="quick-action" onclick="sendQuick('Check my balance')">Check Celo balance</button>
-          <button class="quick-action" onclick="fillPrompt('Save 150,000 naira for rent by December 1')">Draft savings goal</button>
+          <button class="quick-action" onclick="fillPrompt('Save 150,000 naira for rent by December 1')">Create savings goal</button>
+          <button class="quick-action" onclick="sendQuick('Show my goals')">Show my goals</button>
           <button class="quick-action" onclick="fillPrompt('Send 10 USDT to 0x')">Prepare USDT top-up</button>
           <button class="quick-action" onclick="fillPrompt('Alert me if USDT price drops below $0.99')">Set Celo alert</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Goals</h2>
+        <div class="display-toggle" aria-label="Balance display mode">
+          <button id="localToggle" class="active" onclick="setDisplayMode('local')">Local</button>
+          <button id="usdtToggle" onclick="setDisplayMode('usdt')">USDT</button>
+        </div>
+        <div class="goal-list" id="goalsPanel">
+          <p class="note">No savings goals yet. Tell Osher what you want to save for.</p>
         </div>
       </section>
 
@@ -540,7 +647,8 @@
           <p>Connect MiniPay or MetaMask, check your Celo stablecoin balance, and talk to Osher about your first savings goal. This baseline is Celo-only so the savings product has clean foundations.</p>
           <div class="chip-row">
             <button class="chip" onclick="sendQuick('Check my balance')">Check my balance</button>
-            <button class="chip" onclick="sendQuick('I want to save 200 dollars for school fees by December')">Create goal draft</button>
+            <button class="chip" onclick="sendQuick('I want to save 200 dollars for school fees by December')">Create goal</button>
+            <button class="chip" onclick="sendQuick('Show my goals')">Show goals</button>
             <button class="chip" onclick="sendQuick('What can you do?')">Ask Osher</button>
           </div>
         </div>
@@ -557,7 +665,7 @@
   </main>
 
   <script>
-    const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 9);
+    const SESSION_ID = getOrCreateSessionId();
     const CELO_MAINNET = { chainId: '0xa4ec', chainName: 'Celo Mainnet', rpcUrls: ['https://forno.celo.org'], nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 }, blockExplorerUrls: ['https://celoscan.io'] };
     const CELO_ALFAJORES = { chainId: '0xaef3', chainName: 'Celo Alfajores', rpcUrls: ['https://alfajores-forno.celo-testnet.org'], nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 }, blockExplorerUrls: ['https://alfajores.celoscan.io'] };
     const TOKEN_ADDRESSES = {
@@ -571,15 +679,27 @@
     let connectedWalletType = null;
     let pendingTxData = null;
     let networkConfig = CELO_MAINNET;
+    let goals = loadStoredGoals();
+    let displayMode = localStorage.getItem('osher_display_mode') || 'local';
 
     init();
 
     async function init() {
+      renderGoals();
       await loadNetwork();
+      await loadPersistedGoals();
       setupProviderListeners();
       if (isMiniPay()) {
         await connectWallet('minipay');
       }
+    }
+
+    function getOrCreateSessionId() {
+      const stored = localStorage.getItem('osher_session_id');
+      if (stored) return stored;
+      const next = 'session_' + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem('osher_session_id', next);
+      return next;
     }
 
     async function loadNetwork() {
@@ -590,6 +710,19 @@
         document.getElementById('networkLabel').textContent = data.chainId === 44787 ? 'CELO TESTNET' : 'CELO';
       } catch {
         networkConfig = CELO_MAINNET;
+      }
+    }
+
+    async function loadPersistedGoals() {
+      try {
+        const res = await fetch(`/api/goals/${encodeURIComponent(SESSION_ID)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data.goals) && data.goals.length) {
+          syncGoalsFromResponse({ goals: data.goals });
+        }
+      } catch {
+        // Local storage still keeps the dashboard useful offline.
       }
     }
 
@@ -648,12 +781,25 @@
           loginTxHash
         };
 
+        syncWalletConnection();
         updateWalletUi();
         closeWalletModal();
         showToast('Wallet connected and login proof submitted.');
       } catch (err) {
         console.error('[Wallet] Connection failed:', err);
         showToast(cleanWalletError(err));
+      }
+    }
+
+    async function syncWalletConnection() {
+      try {
+        await fetch('/api/wallet/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: SESSION_ID, walletInfo })
+        });
+      } catch {
+        // Wallet remains connected locally; persistence will retry on chat messages.
       }
     }
 
@@ -755,6 +901,10 @@
           return;
         }
 
+        if (data.data?.goal || data.data?.goals) {
+          syncGoalsFromResponse(data.data);
+        }
+
         if (data.state === 'awaiting_confirmation') {
           pendingTxData = data.data;
           appendMessage('agent', data.message);
@@ -767,6 +917,87 @@
       } finally {
         setSendDisabled(false);
       }
+    }
+
+    function syncGoalsFromResponse(data) {
+      if (Array.isArray(data.goals)) {
+        goals = data.goals;
+      } else if (data.goal) {
+        const index = goals.findIndex(goal => goal.id === data.goal.id);
+        if (index >= 0) goals[index] = data.goal;
+        else goals.unshift(data.goal);
+      }
+
+      if (data.displayMode) {
+        displayMode = data.displayMode;
+        localStorage.setItem('osher_display_mode', displayMode);
+      }
+
+      localStorage.setItem('osher_goals', JSON.stringify(goals));
+      renderGoals();
+    }
+
+    function loadStoredGoals() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('osher_goals') || '[]');
+        return Array.isArray(stored) ? stored : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function setDisplayMode(mode) {
+      displayMode = mode === 'usdt' ? 'usdt' : 'local';
+      localStorage.setItem('osher_display_mode', displayMode);
+      renderGoals();
+    }
+
+    function renderGoals() {
+      const panel = document.getElementById('goalsPanel');
+      if (!panel) return;
+
+      document.getElementById('localToggle')?.classList.toggle('active', displayMode === 'local');
+      document.getElementById('usdtToggle')?.classList.toggle('active', displayMode === 'usdt');
+
+      if (!goals.length) {
+        panel.innerHTML = '<p class="note">No savings goals yet. Tell Osher what you want to save for.</p>';
+        return;
+      }
+
+      panel.innerHTML = goals.map(goal => {
+        const progress = Math.max(0, Math.min(100, Number(goal.progressPercent || 0)));
+        const target = displayMode === 'usdt'
+          ? `${formatNumber(goal.targetAmountUSDT, 2)} USDT`
+          : formatLocalAmount(goal.targetAmountDisplay, goal.displayCurrency);
+        const weekly = displayMode === 'usdt'
+          ? `${formatNumber(goal.weeklyTargetUSDT, 2)} USDT/week`
+          : `${formatLocalAmount(goal.weeklyTargetDisplay, goal.displayCurrency)}/week`;
+        const rate = goal.exchangeRate?.currency && goal.exchangeRate.currency !== 'USD'
+          ? `<div>1 USDT ~= ${formatLocalAmount(goal.exchangeRate.localPerUSDT, goal.exchangeRate.currency)}</div>`
+          : '<div>Displayed in USDT</div>';
+
+        return `
+          <article class="goal-card">
+            <div class="goal-top">
+              <div>
+                <div class="goal-name">${escapeHtml(goal.name || 'Savings Goal')}</div>
+                <div class="goal-category">${escapeHtml(goal.categoryLabel || goal.category || 'Goal')}</div>
+              </div>
+              <div class="goal-category">${escapeHtml(goal.status || 'active')}</div>
+            </div>
+            <div class="goal-amount">${escapeHtml(target)}</div>
+            <div class="progress-track" aria-label="Goal progress">
+              <div class="progress-fill" style="width:${progress}%"></div>
+            </div>
+            <div class="goal-meta">
+              <div>${escapeHtml(weekly)}</div>
+              <div>${Number(goal.daysRemaining || 0)} day${Number(goal.daysRemaining || 0) === 1 ? '' : 's'} left</div>
+              ${rate}
+              <div>${progress.toFixed(0)}% saved</div>
+            </div>
+          </article>
+        `;
+      }).join('');
     }
 
     async function signEvmTransfer(transferData) {
@@ -1014,6 +1245,23 @@
         return 'Your wallet does not have enough funds for this transaction and network fee.';
       }
       return message;
+    }
+
+    function formatLocalAmount(amount, currency) {
+      const value = Number(amount || 0);
+      const code = String(currency || 'USD').toUpperCase();
+
+      if (code === 'USD') return `${formatNumber(value, 2)} USDT`;
+      if (code === 'NGN') return `NGN ${formatNumber(value, 0)}`;
+      if (code === 'GHS') return `GHS ${formatNumber(value, 2)}`;
+      return `${formatNumber(value, 2)} ${code}`;
+    }
+
+    function formatNumber(value, digits) {
+      return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
     }
 
     function escapeHtml(value) {

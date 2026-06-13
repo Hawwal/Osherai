@@ -21,6 +21,13 @@ module.exports = {
   OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY_HERE",
   AI_MODEL: env.AI_MODEL || "openrouter/free",
 
+  // ── Supabase Persistence ─────────────────────────────────────
+  SUPABASE: {
+    URL: env.SUPABASE_URL || "",
+    SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY || "",
+    ANON_KEY: env.SUPABASE_ANON_KEY || "",
+  },
+
   // ── Agent Wallet ─────────────────────────────────────────────
   AGENT_PRIVATE_KEY: env.AGENT_PRIVATE_KEY || "YOUR_AGENT_PRIVATE_KEY_HERE",
   
@@ -34,6 +41,24 @@ module.exports = {
   // ── Service Fees ─────────────────────────────────────────────
   SERVICE_FEE_WALLET: env.SERVICE_FEE_WALLET || "YOUR_FEE_COLLECTION_WALLET_HERE",
   SERVICE_FEE_PERCENT: parseFloat(env.SERVICE_FEE_PERCENT || "0.5"),
+
+  // ── Savings Vault ────────────────────────────────────────────
+  CONTRACTS: {
+    OSHER_SAVINGS_VAULT: env.OSHER_SAVINGS_VAULT || "",
+    VAULT_SAVINGS_TOKEN: env.VAULT_SAVINGS_TOKEN || "",
+    VAULT_AGENT_ADDRESS: env.VAULT_AGENT_ADDRESS || "",
+  },
+
+  // ── Local Currency Display ──────────────────────────────────
+  FX: {
+    DEFAULT_LOCAL_CURRENCY: env.DEFAULT_LOCAL_CURRENCY || "NGN",
+    SOURCE: env.FX_SOURCE || "configured_fallback",
+    USDT_RATES: {
+      USD: 1,
+      NGN: parseFloat(env.FX_NGN_PER_USDT || "1500"),
+      GHS: parseFloat(env.FX_GHS_PER_USDT || "15"),
+    },
+  },
 
   // ── RPC URLs ─────────────────────────────────────────────────
   RPC: {

@@ -10,7 +10,7 @@ const http       = require("http");
 const { Server } = require("socket.io");
 
 const config                  = require("./config/keys");
-const { handleUserMessage }   = require("./src/agent/orchestrator");
+const { handleUserMessage, getGoalsForSession, syncWalletForSession, getPersistenceStatus } = require("./src/agent/orchestrator");
 const { startAlertPolling, getAlertsForSession, cancelAlert,
         getCurrentBridgeFees, getTokenPrice, getGasPrices } = require("./src/trading/alertEngine");
 const { handleTelegramUpdate, registerWebhook: registerTelegramWebhook } = require("./src/bots/telegramBot");
@@ -45,6 +45,32 @@ app.post("/api/message", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.get("/api/goals/:sessionId", async (req, res) => {
+  try {
+    res.json(await getGoalsForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/persistence", (_, res) => {
+  res.json(getPersistenceStatus());
+});
+
+app.post("/api/wallet/connect", async (req, res) => {
+  const { sessionId, walletInfo } = req.body;
+  if (!sessionId || !walletInfo?.address) {
+    return res.status(400).json({ error: "sessionId and walletInfo.address are required" });
+  }
+
+  try {
+    res.json(await syncWalletForSession(sessionId, walletInfo));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/transaction-complete", async (req, res) => {
   const { sessionId, txHash, token, amount, chain } = req.body;
   
@@ -164,6 +190,25 @@ app.get("/api/network", (_, res) => {
     network: config.NETWORK || "mainnet",
     rpc:     config.RPC?.CELO?.includes("alfajores") ? "alfajores" : "mainnet",
     chainId: config.RPC?.CELO?.includes("alfajores") ? 44787 : 42220,
+  });
+});
+
+// GET /api/rates — local display rates used for USDT equivalents
+app.get("/api/rates", (_, res) => {
+  res.json({
+    base: "USDT",
+    defaultLocalCurrency: config.FX?.DEFAULT_LOCAL_CURRENCY || "NGN",
+    source: config.FX?.SOURCE || "configured_fallback",
+    rates: config.FX?.USDT_RATES || { USD: 1 },
+  });
+});
+
+app.get("/api/contracts", (_, res) => {
+  res.json({
+    network: config.NETWORK || "mainnet",
+    savingsVault: config.CONTRACTS?.OSHER_SAVINGS_VAULT || "",
+    savingsToken: config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "",
+    agent: config.CONTRACTS?.VAULT_AGENT_ADDRESS || "",
   });
 });
 

@@ -11,6 +11,8 @@ const config = require("../../config/keys");
 const { parseIntent, generateTransactionPreview, explainError } = require("./intentParser");
 const { validateTransfer } = require("../utils/validator");
 const { getBestBridgeRoute } = require("../bridges/bridgeRouter");
+const { createSavingsGoalPlan, summarizeGoalPlan, formatDisplayAmount } = require("../utils/savingsPlanner");
+const persistence = require("../storage/persistence");
 const logger = require("../utils/errorLogger");
 
 const activeSessions = new Map();
@@ -25,6 +27,8 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
     session.chainId = walletInfo.chainId || 42220;
     session.loginTxHash = walletInfo.loginTxHash || session.loginTxHash;
   }
+
+  await hydratePersistentSession(session, walletInfo);
 
   console.log(`[Orchestrator] Session ${sessionId} | Wallet: ${session.walletType || "none"} (${session.walletAddress ? session.walletAddress.slice(0, 8) + "..." : "not connected"}) | State: ${session.state} | Message: "${userMessage}"`);
 
@@ -51,7 +55,7 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
         return await handleQuery(session, intent);
 
       case "savings_goal_draft":
-        return handleSavingsGoalDraft(session, intent);
+        return await handleSavingsGoalDraft(session, intent);
 
       case "clarification_needed":
         return handleClarification(intent);
@@ -191,6 +195,10 @@ function registerAlert(session, intent) {
 }
 
 async function handleQuery(session, intent) {
+  if (intent.queryType === "goals_check") {
+    return await handleGoalsCheck(session);
+  }
+
   if (intent.queryType === "balance_check") {
     return await handleBalanceCheck(session, intent);
   }
@@ -315,17 +323,85 @@ async function handleBalanceCheck(session, intent) {
   }
 }
 
-function handleSavingsGoalDraft(session, intent) {
-  const amountText = intent.amount
-    ? `${intent.currency || "USD"} ${Number(intent.amount).toLocaleString()}`
-    : "that amount";
-  const purpose = intent.purpose === "custom" ? "goal" : intent.purpose;
-  const deadline = intent.deadlineText ? ` by ${intent.deadlineText}` : "";
+async function handleSavingsGoalDraft(session, intent) {
+  if (!intent.amount) {
+    return {
+      message: "I can set that up. How much do you want to save, and by when?",
+      state: "idle",
+      data: { draftGoal: intent },
+    };
+  }
+
+  if (!session.goals) session.goals = [];
+
+  try {
+    const goal = createSavingsGoalPlan(intent, session.goals);
+    const savedGoal = await safePersist(
+      "save goal",
+      () => persistence.saveGoal(session.userId, goal),
+      goal
+    );
+    session.goals = upsertGoal(session.goals, savedGoal);
+
+    const message = summarizeGoalPlan(savedGoal);
+    session.history.push({ role: "assistant", content: message });
+    await safePersist("log goal creation", () => persistence.logAgentAction(session.userId, {
+      goalId: savedGoal.id,
+      type: "goal_created",
+      amountUSDT: savedGoal.targetAmountUSDT,
+      message,
+    }));
+
+    return {
+      message,
+      state: "idle",
+      data: {
+        goal: savedGoal,
+        goals: session.goals,
+        displayMode: savedGoal.displayCurrency === "USD" ? "usdt" : "local",
+      },
+    };
+  } catch (error) {
+    return {
+      message: "I could not create that savings goal yet. Try something like: Save 150,000 naira for rent by December 1.",
+      state: "idle",
+      error: error.message,
+      data: { draftGoal: intent },
+    };
+  }
+}
+
+async function handleGoalsCheck(session) {
+  const persistedGoals = await safePersist(
+    "load goals",
+    () => persistence.listGoals(session.userId),
+    session.goals || []
+  );
+  session.goals = persistedGoals;
+  const goals = session.goals || [];
+
+  if (goals.length === 0) {
+    return {
+      message: "You do not have any savings goals in this session yet. Tell me something like: Save 150,000 naira for rent by December 1.",
+      state: "idle",
+      data: { goals },
+    };
+  }
+
+  const lines = goals.map(goal => {
+    const target = goal.displayCurrency === "USD"
+      ? `${goal.targetAmountUSDT.toFixed(2)} USDT`
+      : `${formatDisplayAmount(goal.targetAmountDisplay, goal.displayCurrency)} (~${goal.targetAmountUSDT.toFixed(2)} USDT)`;
+    const weekly = goal.displayCurrency === "USD"
+      ? `${goal.weeklyTargetUSDT.toFixed(2)} USDT/week`
+      : `${formatDisplayAmount(goal.weeklyTargetDisplay, goal.displayCurrency)}/week`;
+    return `- ${goal.name}: ${target}, ${weekly}, ${goal.daysRemaining} day${goal.daysRemaining === 1 ? "" : "s"} left`;
+  }).join("\n");
 
   return {
-    message: `Got it: save ${amountText} for your ${purpose}${deadline}. In the next build step, I'll turn this into a real goal with USDT conversion, weekly targets, and progress tracking. For now, the Celo wallet baseline is ready for balances and wallet-signed top-ups.`,
+    message: `Here are your active goals:\n\n${lines}`,
     state: "idle",
-    data: { draftGoal: intent },
+    data: { goals },
   };
 }
 
@@ -434,6 +510,12 @@ async function handleTransactionComplete(sessionId, txData) {
 
     session.state = "idle";
     session.pendingTransaction = null;
+    await safePersist("record transaction", () => persistence.recordTransaction(session.userId, {
+      token,
+      amount,
+      txHash,
+      status: "confirmed",
+    }));
 
     const explorerUrl = getExplorerUrl(chain, txHash);
     return {
@@ -474,6 +556,7 @@ function hasBlockedChainTerm(text) {
 function createSession(sessionId, walletInfo) {
   return {
     sessionId,
+    userId: persistence.resolveUserId(sessionId),
     state: "idle",
     walletAddress: walletInfo.address || null,
     walletType: walletInfo.walletType || null,
@@ -482,12 +565,91 @@ function createSession(sessionId, walletInfo) {
     history: [],
     pendingTransaction: null,
     alerts: [],
+    goals: [],
     createdAt: new Date().toISOString(),
   };
+}
+
+async function hydratePersistentSession(session, walletInfo = {}) {
+  if (session.persistenceHydrated && !walletInfo.address) return;
+
+  await safePersist("ensure user", () => persistence.ensureUser(session.sessionId));
+
+  if (walletInfo.address) {
+    await safePersist("upsert wallet", () => persistence.upsertWallet(session.userId, walletInfo));
+  }
+
+  if (!session.persistenceHydrated) {
+    const goals = await safePersist("load goals", () => persistence.listGoals(session.userId), []);
+    session.goals = goals.length ? goals : (session.goals || []);
+    session.persistenceHydrated = true;
+  }
+}
+
+async function getGoalsForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+  const goals = await safePersist("load goals", () => persistence.listGoals(session.userId), session.goals || []);
+  session.goals = goals;
+  return {
+    goals,
+    persistence: persistence.getPersistenceStatus(),
+  };
+}
+
+async function syncWalletForSession(sessionId, walletInfo = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, walletInfo);
+  activeSessions.set(sessionId, session);
+
+  if (walletInfo.address) {
+    session.walletAddress = walletInfo.address;
+    session.walletType = walletInfo.walletType || "metamask";
+    session.chainId = walletInfo.chainId || 42220;
+    session.loginTxHash = walletInfo.loginTxHash || session.loginTxHash;
+  }
+
+  await hydratePersistentSession(session, walletInfo);
+  return {
+    wallet: {
+      address: session.walletAddress,
+      walletType: session.walletType,
+      chainId: session.chainId,
+      loginTxHash: session.loginTxHash,
+    },
+    persistence: persistence.getPersistenceStatus(),
+  };
+}
+
+function getPersistenceStatus() {
+  return persistence.getPersistenceStatus();
+}
+
+async function safePersist(label, operation, fallback = null) {
+  try {
+    return await operation();
+  } catch (error) {
+    console.warn(`[Persistence] ${label} failed:`, error.message);
+    if (typeof logger.warn === "function") {
+      logger.warn("Persistence", `${label} failed`, { error: error.message });
+    }
+    return fallback;
+  }
+}
+
+function upsertGoal(goals = [], goal) {
+  const index = goals.findIndex(item => item.id === goal.id);
+  if (index === -1) return [goal, ...goals];
+  const next = goals.slice();
+  next[index] = goal;
+  return next;
 }
 
 module.exports = {
   handleUserMessage,
   handleTransactionComplete,
+  getGoalsForSession,
+  syncWalletForSession,
+  getPersistenceStatus,
   activeSessions,
 };
