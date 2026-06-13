@@ -40,50 +40,7 @@ module.exports = {
     CELO: env.RPC_CELO || 
       (env.NETWORK === "mainnet"
         ? "https://forno.celo.org"
-        : "https://sepolia-forno.celo-testnet.org"),
-  },
-
-// ── Solana Configuration ────────────────────────────────────
-  SOLANA: {
-    // RPC URLs
-    RPC_URL: env.SOLANA_RPC_URL || 
-      (env.NETWORK === "mainnet"
-        ? "https://api.mainnet-beta.solana.com"
-        : "https://api.devnet.solana.com"),
-
-    // Master wallet private key (base58-encoded)
-    MASTER_PRIVATE_KEY: env.SOLANA_MASTER_PRIVATE_KEY || "YOUR_SOLANA_PRIVATE_KEY_HERE",
-
-    // Sub-agent keys (optional, for multi-agent setup)
-    TRADING_BOT_KEY: env.SOLANA_TRADING_BOT_KEY || "",
-    LP_PROVIDER_KEY: env.SOLANA_LP_PROVIDER_KEY || "",
-
-    // Token mint addresses (Solana mainnet)
-    TOKENS: {
-      SOL: "So11111111111111111111111111111111111111112", // Wrapped SOL
-      USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC (mainnet)
-      USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // USDT (mainnet)
-      
-      // Devnet addresses (for testing)
-      USDC_DEVNET: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-      USDT_DEVNET: "EJwZgeZrdC8TXTQbQBoL6bfuAnFUUy1PVCMB4DYPzVaS",
-    },
-
-    // Transaction limits (safety)
-    TX_LIMITS: {
-      MAX_SOL_PER_TX: parseFloat(env.SOLANA_MAX_SOL_PER_TX || "10"),
-      MAX_USD_PER_TX: parseFloat(env.SOLANA_MAX_USD_PER_TX || "1000"),
-      DAILY_LIMIT_USD: parseFloat(env.SOLANA_DAILY_LIMIT_USD || "5000"),
-    },
-
-    // Jupiter swap settings
-    JUPITER: {
-      SLIPPAGE_BPS: parseInt(env.JUPITER_SLIPPAGE_BPS || "50"), // 0.5%
-      API_KEY: env.JUPITER_API_KEY || "", // Optional, for priority
-    },
-
-    // Multi-agent encryption (optional)
-    MASTER_PASSWORD: env.MULTI_AGENT_PASSWORD || "",
+        : "https://alfajores-forno.celo-testnet.org"),
   },
 
   // ── Integrations (Optional) ──────────────────────────────────
@@ -92,6 +49,13 @@ module.exports = {
   WHATSAPP_PHONE_NUMBER_ID: env.WHATSAPP_PHONE_NUMBER_ID || "",
   WHATSAPP_VERIFY_TOKEN: env.WHATSAPP_VERIFY_TOKEN || "osherai-webhook-verify",
 
+  BOTS: {
+    TELEGRAM_BOT_TOKEN: env.TELEGRAM_BOT_TOKEN || "",
+    WHATSAPP_TOKEN: env.WHATSAPP_TOKEN || "",
+    WHATSAPP_PHONE_ID: env.WHATSAPP_PHONE_ID || env.WHATSAPP_PHONE_NUMBER_ID || "",
+    WHATSAPP_VERIFY_TOKEN: env.WHATSAPP_VERIFY_TOKEN || "osherai-webhook-verify",
+  },
+
   ADMIN_PASSWORD: env.ADMIN_PASSWORD || "osherai-admin",
 
   // ── Mento Swap (Celo native stablecoin swap) ────────────────
@@ -99,6 +63,20 @@ module.exports = {
     MENTO_BROKER_ADDRESS: env.MENTO_BROKER_ADDRESS || "0x777A8255cA72E541B2aA3a9B1cBB0F92b90b5C3B",
     MENTO_SLIPPAGE_TOLERANCE: parseFloat(env.MENTO_SLIPPAGE_TOLERANCE || "0.01"),
     UNISWAP_ROUTER_V3: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+  },
+
+  // ── External Data APIs ────────────────────────────────────────
+  ORACLES: {
+    COINGECKO_API_KEY: env.COINGECKO_API_KEY || "",
+    COINGECKO_BASE_URL: env.COINGECKO_BASE_URL || "https://api.coingecko.com/api/v3",
+  },
+
+  // ── Bridge Quote APIs (EVM only) ──────────────────────────────
+  BRIDGES: {
+    ACROSS_API: env.ACROSS_API || "https://app.across.to/api",
+    WORMHOLE_RPC: env.WORMHOLE_RPC || "https://relayer.wormhole.com",
+    AXELAR_RPC: env.AXELAR_RPC || "https://api.gmp.axelarscan.io",
+    CELER_API: env.CELER_API || "https://cbridge-prod2.celer.app",
   },
 
   // ── Price Feeds (Chainlink oracles on Celo) ─────────────────

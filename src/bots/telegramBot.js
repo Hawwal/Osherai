@@ -108,7 +108,7 @@ async function handleCommand(chatId, text, sessionId, from) {
         `Examples:\n` +
         `• \`Send 100 USDT to 7xB2...\`\n` +
         `• \`Move 250 USDC to 0xA1B2... on Base\`\n` +
-        `• \`Transfer 500 USDm to Solana wallet ABC...\``
+        `• \`Save 150,000 naira for rent by December\``
       );
       break;
 

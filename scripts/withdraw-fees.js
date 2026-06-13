@@ -4,7 +4,7 @@
  * Utility script to withdraw accumulated fees from both contracts.
  *
  * Celo:   npx hardhat run scripts/withdraw-fees.js --network celo
- * Solana: node scripts/withdraw-fees.js --solana
+ * Celo: node scripts/withdraw-fees.js
  * ─────────────────────────────────────────────────────────────────
  */
 

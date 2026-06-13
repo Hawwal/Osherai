@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/user/Osherai/contracts/OsherMonitor.sol": {
-      "lastModificationDate": 1779697734888,
-      "contentHash": "53e0daf33d41b217800eacb9db54834e",
+      "lastModificationDate": 1781350121581,
+      "contentHash": "b5fede66dd26ede34532429a7b3c6a69",
       "sourceName": "contracts/OsherMonitor.sol",
       "solcConfig": {
         "version": "0.8.20",

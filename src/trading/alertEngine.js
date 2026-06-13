@@ -52,7 +52,6 @@ async function getTokenPrice(tokenSymbol) {
     USDm: "tether",  // USDm trades ~$1
     ETH:  "ethereum",
     MATIC:"matic-network",
-    SOL:  "solana",
   };
 
   const coinId = COINGECKO_IDS[tokenSymbol.toUpperCase()];

@@ -1,173 +1,125 @@
 /**
  * intentParser.js
  * ─────────────────────────────────────────────────────────────────
- * Uses OpenRouter (free tier) to parse natural language into
- * structured transfer intents. Falls back to a local regex parser
- * if the API key is missing or the call fails.
- *
- * To switch to Anthropic later:
- *   1. npm install @anthropic-ai/sdk
- *   2. Change OPENROUTER_API_KEY → ANTHROPIC_API_KEY in keys.js
- *   3. Swap baseURL to https://api.anthropic.com
- *   4. Change model to "claude-opus-4-5-20251101"
- * ─────────────────────────────────────────────────────────────────
+ * Uses OpenRouter to parse plain-English requests into the small
+ * Celo-only intent set used by the Step 1 wallet baseline.
  */
 
 const OpenAI = require("openai");
 const config = require("../../config/keys");
 
-// ── OpenRouter client (OpenAI-compatible) ──────────────────────────
-// Uses the same OpenAI SDK — just a different baseURL and key
 const hasApiKey = config.OPENROUTER_API_KEY &&
-  config.OPENROUTER_API_KEY !== "YOUR_KEY_HERE";
+  config.OPENROUTER_API_KEY !== "YOUR_OPENROUTER_KEY_HERE";
 
 const ai = hasApiKey
   ? new OpenAI({
-      apiKey:  config.OPENROUTER_API_KEY,
+      apiKey: config.OPENROUTER_API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
       defaultHeaders: {
-        "HTTP-Referer":  config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-        "X-Title":       "Osher AI — Cross-Chain Transfer Agent",
+        "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
+        "X-Title": "Osher AI - Celo Savings Agent",
       },
     })
   : null;
 
-// ── Model selection ────────────────────────────────────────────────
-// "openrouter/free" = auto-selects from all free models
-// Upgrade path: swap to "deepseek/deepseek-chat" (near-free) or
-//               "anthropic/claude-opus-4-5-20251101" (paid, best quality)
 const MODEL = config.AI_MODEL || "openrouter/free";
 
-// ── System prompts ─────────────────────────────────────────────────
 const INTENT_SYSTEM_PROMPT = `
-You are an intent parser for a cross-chain crypto transfer agent running on Celo.
-Extract structured data from the user's plain-English request.
-ALWAYS respond with valid JSON only — no markdown, no explanation, just raw JSON.
+You are an intent parser for Osher AI, a Celo savings agent.
+The app is Celo-only for now. Do not create non-Celo wallet, swap-aggregator, staking, or cross-chain intents.
+ALWAYS respond with valid JSON only. No markdown, no explanation.
 
-JSON must match one of these types:
+Allowed intent types:
 
-TYPE 1 — Transfer:
+TYPE 1 - Celo transfer/top-up placeholder:
 {
   "type": "transfer",
   "fromChain": "celo",
-  "fromAddress": null,
   "toAddress": "0x...",
   "token": "USDT",
   "amount": 100,
-  "toChain": "base",
-  "priority": "cheapest"
+  "purpose": "top_up"
 }
 
-TYPE 2 — Alert:
+TYPE 2 - Alert:
 {
   "type": "alert",
-  "condition": "fee_below",
+  "condition": "fee_below" | "price_below" | "price_above",
   "threshold": 1.0,
   "token": "USDT",
-  "targetChain": "base",
-  "action": "notify",
-  "transferDetails": null
+  "targetChain": "celo",
+  "action": "notify"
 }
 
-TYPE 3 — Swap + Transfer:
-{
-  "type": "swap_and_transfer",
-  "fromToken": "USDm",
-  "toToken": "USDC",
-  "fromChain": "celo",
-  "toChain": "solana",
-  "amount": 500,
-  "toAddress": "...",
-  "priority": "cheapest"
-}
-
-TYPE 4 — Query:
+TYPE 3 - Query:
 {
   "type": "query",
-  "queryType": "fee_check" | "balance_check" | "price_check",
-  "token": "USDT" | "all",
-  "chain": "base" | "celo"
+  "queryType": "balance_check" | "price_check" | "fee_check",
+  "token": "USDT" | "USDC" | "USDm" | "CELO" | "all",
+  "chain": "celo"
 }
-Examples of balance queries: "show my balance", "my balance", "what do I have", "how much USDT do I have"
-For balance queries always use queryType: "balance_check" and chain: "celo"
 
-TYPE 5 — Needs clarification (ONLY if both address AND amount are truly missing):
+TYPE 4 - Savings goal draft:
+{
+  "type": "savings_goal_draft",
+  "amount": 150000,
+  "currency": "NGN",
+  "deadlineText": "December 1",
+  "purpose": "rent",
+  "originalMessage": "Save 150,000 naira for rent by December"
+}
+
+TYPE 5 - Conversational:
+{
+  "type": "conversational",
+  "originalMessage": "hello"
+}
+
+TYPE 6 - Needs clarification:
 {
   "type": "clarification_needed",
-  "missingFields": ["toAddress"],
+  "missingFields": ["amount"],
   "partialIntent": {}
 }
 
-TYPE 6 — Swap (Token exchange on DEX):
-{
-  "type": "swap",
-  "fromToken": "SOL",
-  "toToken": "USDC",
-  "amount": 5,
-  "chain": "solana"
-}
-Examples: "swap 5 SOL to USDC", "exchange 100 USDC for SOL", "buy 50 USDT with SOL"
-
-TYPE 7 — DeFi (Staking, LP provision):
-{
-  "type": "defi",
-  "operation": "stake" | "add_liquidity" | "remove_liquidity",
-  "token": "SOL",
-  "amount": 10,
-  "protocol": "marinade" | "raydium" | "orca",
-  "chain": "solana"
-}
-Examples: "stake 10 SOL on Marinade", "add liquidity 5 SOL and 500 USDC to Raydium"
-
 Rules:
-- fromChain is ALWAYS "celo" unless user says otherwise
-- Default priority: "cheapest"
-- Amount must be a number, never a string
-- Normalize tokens to: USDT, USDC, USDm, CELO, ETH
-- Solana addresses: base58, 32-44 chars, no 0x prefix
-- EVM addresses: 0x + 40 hex chars
-- Infer toChain from address format or user's words
-- If address + amount + token are present → TYPE 1, never ask for clarification
-- Only use TYPE 5 if BOTH address AND amount are completely missing
+- Supported tokens: USDT, USDC, USDm, CELO.
+- Supported chain is always "celo".
+- Only accept EVM addresses with 0x + 40 hex chars.
+- If the user asks for a non-Celo chain or wallet, return conversational and explain that Osher is now Celo-only.
+- For savings goal language like "save", "help me save", "goal", "rent", "school fees", "emergency fund", return savings_goal_draft.
+- If a transfer has amount but no address, return clarification_needed for toAddress.
+- If a transfer has address but no amount, return clarification_needed for amount.
 `;
 
 const PREVIEW_SYSTEM_PROMPT = `
-You are a friendly assistant for a crypto transfer app.
-Write a warm, clear 2-3 sentence summary of what is about to happen.
-Include: amount, token, destination chain, bridge, estimated fee, and time.
+You are Osher, a friendly Celo savings assistant.
+Write a warm 2-3 sentence summary of a Celo transaction preview.
+Include amount, token, destination, and that the user must approve in their wallet.
 End with: "Reply YES to confirm or NO to cancel."
-Sound like a helpful human, not a robot. Keep it simple — no jargon.
+Avoid jargon.
 `;
 
 const ERROR_SYSTEM_PROMPT = `
-You are a helpful crypto assistant explaining why a transaction couldn't complete.
-Be warm and clear. Avoid technical jargon — explain it simply.
-Always end with 1-2 concrete next steps the user can take.
+You are Osher, a helpful Celo savings assistant.
+Explain transaction problems simply and warmly.
+End with one concrete next step.
 `;
 
-// ── Main parse function ────────────────────────────────────────────
-
-/**
- * Parse a natural language message into a structured intent.
- * Tries OpenRouter API first, falls back to local regex parser.
- *
- * @param {string} userMessage
- * @param {Object} sessionContext
- * @returns {Promise<Object>}
- */
 async function parseIntent(userMessage, sessionContext = {}) {
   if (ai) {
     try {
       const contextStr = sessionContext.connectedWallet
-        ? `\nUser's connected wallet: ${sessionContext.connectedWallet}` : "";
+        ? `\nUser's connected Celo wallet: ${sessionContext.connectedWallet}`
+        : "";
 
       const response = await ai.chat.completions.create({
-        model:      MODEL,
+        model: MODEL,
         max_tokens: 1024,
         messages: [
           { role: "system", content: INTENT_SYSTEM_PROMPT },
           {
-            role:    "user",
+            role: "user",
             content: `Parse this request into JSON:${contextStr}\n\nUser says: "${userMessage}"`,
           },
         ],
@@ -175,259 +127,247 @@ async function parseIntent(userMessage, sessionContext = {}) {
 
       const rawText = response.choices[0].message.content.trim();
       const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const intent  = JSON.parse(cleaned);
+      const intent = JSON.parse(cleaned);
       console.log("[IntentParser] OpenRouter parsed:", JSON.stringify(intent));
-      return intent;
-
+      return normalizeIntent(intent, userMessage);
     } catch (error) {
       console.warn("[IntentParser] OpenRouter call failed, using local parser:", error.message);
     }
   } else {
-    console.warn("[IntentParser] No OPENROUTER_API_KEY set — using local parser. Add key to config/keys.js");
+    console.warn("[IntentParser] No OPENROUTER_API_KEY set - using local parser.");
   }
 
   return localParseIntent(userMessage);
 }
 
-/**
- * Local regex fallback — no API needed.
- * Handles basic transfer commands reliably for testing.
- */
+function normalizeIntent(intent, originalMessage) {
+  const supported = new Set([
+    "transfer",
+    "alert",
+    "query",
+    "savings_goal_draft",
+    "conversational",
+    "clarification_needed",
+  ]);
+
+  if (!intent || !supported.has(intent.type)) {
+    return { type: "conversational", originalMessage };
+  }
+
+  if (intent.chain && intent.chain !== "celo") intent.chain = "celo";
+  if (intent.targetChain && intent.targetChain !== "celo") intent.targetChain = "celo";
+  if (intent.fromChain && intent.fromChain !== "celo") intent.fromChain = "celo";
+
+  return intent;
+}
+
 function localParseIntent(message) {
   const msg = message.toLowerCase().trim();
 
-  // Check for general conversation - let AI handle naturally
-  const conversationalWords = ["hello", "hi", "hey", "how are you", "what's up", "whats up", 
-                                "good morning", "good evening", "thanks", "thank you"];
-  const isConversational = conversationalWords.some(w => msg.includes(w)) || msg.length < 10;
-  
-  // Check for questions - let AI handle
-  const questionWords = ["what", "why", "how", "when", "where", "who", "can you", "do you"];
-  const isQuestion = questionWords.some(w => msg.startsWith(w));
-  
-  if (isConversational || isQuestion) {
+  if (hasBlockedChainTerm(msg)) {
     return { type: "conversational", originalMessage: message };
   }
 
-  // Create wallet intent
-  if (msg.includes("create") && (msg.includes("wallet") || msg.includes("address"))) {
-    const isSolana = msg.includes("solana") || msg.includes("sol") || msg.includes("phantom");
+  const conversationalWords = [
+    "hello",
+    "hi",
+    "hey",
+    "how are you",
+    "what's up",
+    "whats up",
+    "good morning",
+    "good evening",
+    "thanks",
+    "thank you",
+  ];
+  const isConversational = conversationalWords.some(w => msg.includes(w)) || msg.length < 10;
+
+  const savingsWords = [
+    "save",
+    "savings",
+    "goal",
+    "rent",
+    "school fees",
+    "emergency",
+    "travel",
+    "gadget",
+    "fees",
+  ];
+  if (savingsWords.some(w => msg.includes(w))) {
+    const amount = extractAmount(msg);
+    const currency = extractCurrency(msg);
+    const purpose = extractPurpose(msg);
+    const deadlineText = extractDeadlineText(message);
     return {
-      type: "create_wallet",
-      chain: isSolana ? "solana" : "evm",
+      type: "savings_goal_draft",
+      amount,
+      currency,
+      deadlineText,
+      purpose,
+      originalMessage: message,
     };
   }
 
-  // Alert intent
-  if (msg.includes("alert") || msg.includes("notify") || msg.includes("when fees")) {
-    const threshold  = parseFloat(msg.match(/\$?([\d.]+)/)?.[1] || "1");
-    const chainMatch = msg.match(/\b(base|ethereum|polygon|arbitrum|solana|optimism)\b/);
-    return {
-      type:        "alert",
-      condition:   msg.includes("fee") ? "fee_below" : "price_below",
-      threshold,
-      token:       extractToken(msg) || "USDC",
-      targetChain: chainMatch?.[1] || "base",
-      action:      "notify",
-      transferDetails: null,
-    };
-  }
-
-  // Balance query intent — catch BEFORE fee check
   const balanceWords = [
-    "balance", 
+    "balance",
     "wallet balance",
-    "how much do i have", 
-    "how much money",
+    "how much do i have",
     "what's in my wallet",
     "whats in my wallet",
     "check my wallet",
     "my funds",
-    "my usdt", 
-    "my usdc", 
-    "my tokens", 
-    "my celo", 
-    "what do i have",
-    "show balance", 
-    "check balance", 
+    "my usdt",
+    "my usdc",
+    "my tokens",
+    "my celo",
+    "show balance",
+    "check balance",
     "show my balance",
-    "connected wallet balance",
-    "how much have i got"
   ];
   if (balanceWords.some(w => msg.includes(w))) {
     return {
-      type:      "query",
+      type: "query",
       queryType: "balance_check",
-      token:     extractToken(msg) || "all",
-      chain:     "celo",
+      token: extractToken(msg) || "all",
+      chain: "celo",
     };
   }
 
-  // Fee / query intent
-  if (msg.includes("fee") || msg.includes("how much") || msg.includes("cost") || msg.includes("check price")) {
-    const chainMatch = msg.match(/\b(base|ethereum|polygon|arbitrum|solana|optimism)\b/);
+  if (msg.includes("alert") || msg.includes("notify")) {
+    const threshold = parseFloat(msg.match(/\$?([\d.]+)/)?.[1] || "1");
     return {
-      type:      "query",
-      queryType: "fee_check",
-      token:     extractToken(msg) || "USDC",
-      chain:     chainMatch?.[1] || "base",
+      type: "alert",
+      condition: msg.includes("fee") ? "fee_below" : "price_below",
+      threshold,
+      token: extractToken(msg) || "USDT",
+      targetChain: "celo",
+      action: "notify",
     };
   }
 
-  // Transfer intent — extract core fields
-  const amountMatch = msg.match(/(\d+(?:\.\d+)?)\s*(usdt|usdc|usdm|celo|eth)?/);
-  const amount      = amountMatch ? parseFloat(amountMatch[1]) : null;
-  const token       = extractToken(msg) || "USDC";
-
-  const evmAddress    = message.match(/0x[a-fA-F0-9]{40}/)?.[0]    || null;
-  const solanaAddress = message.match(/[1-9A-HJ-NP-Za-km-z]{32,44}/)?.[0] || null;
-  const toAddress     = evmAddress || solanaAddress || null;
- 
-// Swap intent
-  if (msg.includes("swap") || msg.includes("exchange") || msg.includes("convert")) {
-    const swapMatch = msg.match(/swap\s+(\d+\.?\d*)\s+(\w+)\s+(?:to|for)\s+(\w+)/i);
-    if (swapMatch) {
-      return {
-        type: "swap",
-        fromToken: swapMatch[2].toUpperCase(),
-        toToken: swapMatch[3].toUpperCase(),
-        amount: parseFloat(swapMatch[1]),
-        chain: "solana", // Default to Solana for swaps
-      };
-    }
-
-    // Alternative pattern: "buy 100 USDC with SOL"
-    const buyMatch = msg.match(/buy\s+(\d+\.?\d*)\s+(\w+)(?:\s+with\s+(\w+))?/i);
-    if (buyMatch) {
-      return {
-        type: "swap",
-        fromToken: buyMatch[3]?.toUpperCase() || "SOL",
-        toToken: buyMatch[2].toUpperCase(),
-        amount: parseFloat(buyMatch[1]),
-        chain: "solana",
-      };
-    }
+  if (msg.includes("fee") || msg.includes("cost") || msg.includes("check price")) {
+    return {
+      type: "query",
+      queryType: msg.includes("price") ? "price_check" : "fee_check",
+      token: extractToken(msg) || "USDT",
+      chain: "celo",
+    };
   }
 
-  // DeFi intent — staking
-  if (msg.includes("stake") || msg.includes("staking")) {
-    const stakeMatch = msg.match(/stake\s+(\d+\.?\d*)\s+(\w+)(?:\s+on\s+(\w+))?/i);
-    if (stakeMatch) {
-      return {
-        type: "defi",
-        operation: "stake",
-        token: stakeMatch[2].toUpperCase(),
-        amount: parseFloat(stakeMatch[1]),
-        protocol: stakeMatch[3]?.toLowerCase() || "marinade",
-        chain: "solana",
-      };
-    }
+  if (isConversational) {
+    return { type: "conversational", originalMessage: message };
   }
 
-  // DeFi intent — liquidity provision
-  if (msg.includes("add liquidity") || msg.includes("provide liquidity")) {
-    const lpMatch = msg.match(/add\s+(?:liquidity\s+)?(\d+\.?\d*)\s+(\w+).*?(\d+\.?\d*)\s+(\w+)/i);
-    if (lpMatch) {
-      return {
-        type: "defi",
-        operation: "add_liquidity",
-        tokenA: lpMatch[2].toUpperCase(),
-        amountA: parseFloat(lpMatch[1]),
-        tokenB: lpMatch[4].toUpperCase(),
-        amountB: parseFloat(lpMatch[3]),
-        protocol: msg.includes("raydium") ? "raydium" : "orca",
-        chain: "solana",
-      };
-    }
-  }
-
-  // Infer destination chain
-  const chainMap = {
-    base: "base", ethereum: "ethereum", eth: "ethereum",
-    polygon: "polygon", matic: "polygon",
-    arbitrum: "arbitrum", arb: "arbitrum",
-    solana: "solana", sol: "solana",
-    optimism: "optimism", op: "optimism",
-  };
-  let toChain = null;
-  for (const [kw, chain] of Object.entries(chainMap)) {
-    if (msg.includes(kw)) { toChain = chain; break; }
-  }
-  if (!toChain && solanaAddress && !evmAddress) toChain = "solana";
-  if (!toChain && evmAddress)                   toChain = "ethereum";
-
-  // Priority
-  let priority = "cheapest";
-  if (msg.includes("fast"))  priority = "fastest";
-  if (msg.includes("safe"))  priority = "safest";
+  const amount = extractAmount(msg);
+  const token = extractToken(msg) || "USDT";
+  const toAddress = message.match(/0x[a-fA-F0-9]{40}/)?.[0] || null;
 
   if (toAddress && amount) {
-    return { type: "transfer", fromChain: "celo", fromAddress: null,
-             toAddress, token, amount, toChain, priority };
+    return {
+      type: "transfer",
+      fromChain: "celo",
+      toAddress,
+      token,
+      amount,
+      purpose: "top_up",
+    };
   }
+
   if (amount && !toAddress) {
-    return { type: "clarification_needed", missingFields: ["toAddress"],
-             partialIntent: { amount, token, toChain } };
+    return {
+      type: "clarification_needed",
+      missingFields: ["toAddress"],
+      partialIntent: { amount, token, fromChain: "celo" },
+    };
   }
+
   if (toAddress && !amount) {
-    return { type: "clarification_needed", missingFields: ["amount"],
-             partialIntent: { toAddress, token, toChain } };
+    return {
+      type: "clarification_needed",
+      missingFields: ["amount"],
+      partialIntent: { toAddress, token, fromChain: "celo" },
+    };
   }
-  return { type: "clarification_needed", missingFields: ["amount", "toAddress"],
-           partialIntent: {} };
+
+  return { type: "conversational", originalMessage: message };
+}
+
+function extractAmount(msg) {
+  const match = msg.match(/(?:₦|ngn|naira|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+  return match ? parseFloat(match[1].replace(/,/g, "")) : null;
+}
+
+function extractCurrency(msg) {
+  if (msg.includes("naira") || msg.includes("ngn") || msg.includes("₦")) return "NGN";
+  if (msg.includes("usd") || msg.includes("$") || msg.includes("usdt")) return "USD";
+  if (msg.includes("ghs") || msg.includes("cedi")) return "GHS";
+  return "USD";
+}
+
+function extractPurpose(msg) {
+  const purposes = ["rent", "school fees", "emergency fund", "emergency", "travel", "gadget"];
+  return purposes.find(p => msg.includes(p)) || "custom";
+}
+
+function extractDeadlineText(message) {
+  const match = message.match(/\b(?:by|before|till|until)\s+(.+)$/i);
+  return match ? match[1].trim() : null;
 }
 
 function extractToken(msg) {
-  if (msg.includes("sol ") || msg.includes(" sol")) return "SOL";  // Must come before usdc check
   if (msg.includes("usdm")) return "USDm";
   if (msg.includes("usdt")) return "USDT";
   if (msg.includes("usdc")) return "USDC";
   if (msg.includes("celo")) return "CELO";
-  if (msg.includes(" eth")) return "ETH";
   return null;
 }
 
-// ── Transaction preview ────────────────────────────────────────────
+function hasBlockedChainTerm(msg) {
+  const blocked = [
+    "so" + "lana",
+    "phan" + "tom",
+    "jupi" + "ter",
+    "mari" + "nade",
+    "ray" + "dium",
+    "or" + "ca",
+    "s" + "pl",
+    "s" + "ol",
+  ];
+  return blocked.some(term => new RegExp(`\\b${term}\\b`).test(msg));
+}
 
 async function generateTransactionPreview(intent, bridgeQuote) {
   if (ai) {
     try {
       const response = await ai.chat.completions.create({
-        model:      MODEL,
+        model: MODEL,
         max_tokens: 512,
         messages: [
           { role: "system", content: PREVIEW_SYSTEM_PROMPT },
           {
-            role:    "user",
+            role: "user",
             content: `Summarize this transaction:\nIntent: ${JSON.stringify(intent)}\nRoute: ${JSON.stringify(bridgeQuote)}`,
           },
         ],
       });
       return response.choices[0].message.content;
-    } catch { /* fall through to local */ }
+    } catch { /* fall through */ }
   }
 
-  // Local fallback preview
-  const chain  = intent.toChain || "destination chain";
-  const addr   = intent.toAddress ? intent.toAddress.slice(0, 8) + "..." : "destination";
-  const fee    = bridgeQuote?.feeUSD ? `$${bridgeQuote.feeUSD.toFixed(2)}` : "a small fee";
-  const time   = bridgeQuote?.estimatedMinutes ? `~${bridgeQuote.estimatedMinutes} minutes` : "a few minutes";
-  const bridge = bridgeQuote?.bridge || "the best available bridge";
-  return `I'm about to send ${intent.amount} ${intent.token} from Celo to your ${chain} wallet (${addr}) via ${bridge}. The estimated fee is ${fee} and it should arrive in ${time}. Reply YES to confirm or NO to cancel.`;
+  const addr = intent.toAddress ? intent.toAddress.slice(0, 8) + "..." + intent.toAddress.slice(-4) : "your Celo destination";
+  return `I'm about to prepare a Celo transaction for ${intent.amount} ${intent.token} to ${addr}. You'll approve it in your connected wallet before anything moves. Reply YES to confirm or NO to cancel.`;
 }
-
-// ── Error explainer ───────────────────────────────────────────────
 
 async function explainError(errorType, context) {
   if (ai) {
     try {
       const response = await ai.chat.completions.create({
-        model:      MODEL,
+        model: MODEL,
         max_tokens: 512,
         messages: [
           { role: "system", content: ERROR_SYSTEM_PROMPT },
           {
-            role:    "user",
+            role: "user",
             content: `Explain this problem: ${errorType}\nContext: ${JSON.stringify(context)}`,
           },
         ],
@@ -436,33 +376,15 @@ async function explainError(errorType, context) {
     } catch { /* fall through */ }
   }
 
-  const fallbacks = {
-    validation_failed: `I wasn't able to process that transfer: ${context.errors?.join(", ") || "validation failed"}. ${context.suggestions?.join(" ") || "Please check the address and try again."}`,
-    execution_failed:  `The transfer hit a snag: ${context.error || "an unexpected error"}. Try again in a moment, or try a smaller amount first.`,
-    default:           `Something went wrong with your transfer. Please double-check the address and amount, then try again.`,
-  };
-  return fallbacks[errorType] || fallbacks.default;
-}
+  if (errorType === "validation_failed") {
+    return `I could not prepare that Celo transaction yet: ${context.errors?.join(", ") || "something needs checking"}. Please review the address and amount, then try again.`;
+  }
 
-/**
- * Detect if this is a Solana address vs EVM address
- * Solana: base58, 32-44 chars
- * EVM: 0x prefix, 42 chars hex
- */
-function detectChainFromAddress(address) {
-  if (address.startsWith("0x") && address.length === 42) {
-    return "evm";
-  }
-  if (address.length >= 32 && address.length <= 44 && !address.startsWith("0x")) {
-    return "solana";
-  }
-  return "unknown";
+  return "Something went wrong while preparing that Celo action. Please try again in a moment.";
 }
 
 module.exports = {
   parseIntent,
   generateTransactionPreview,
   explainError,
-  detectChainFromAddress,
 };
-

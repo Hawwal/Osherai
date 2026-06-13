@@ -13,7 +13,6 @@ const { detectChainFromAddress, validateAddressForChain } = require("../chains/c
 // Minimum token support matrix
 // true = token is native/well-supported on this chain
 const TOKEN_SUPPORT_MATRIX = {
-  solana:   { USDC: true,  USDT: true,  USDm: false, CELO: false },
   base:     { USDC: true,  USDT: true,  USDm: false, CELO: false },
   ethereum: { USDC: true,  USDT: true,  USDm: false, CELO: false },
   polygon:  { USDC: true,  USDT: true,  USDm: false, CELO: false },

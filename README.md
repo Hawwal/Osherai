@@ -1,142 +1,66 @@
-# Osher Ai
+# Osher AI
 
 ## Notice
-Verification on selfclaw is not avaialble due to reatrictions of self protocol verification in Nigeria. verification of project is verifiable on karma and 8004 with **agent id 131**
+ verification in Nigeria. Project verification is available on karma, 8004 with agent id 131, and selfclaw.
 
-## 🚀 Overview
-Osher Ai is an intent-based AI agent that enables users to transfer stablecoins from Celo to other blockchains fast, cheaply, and safely — without interacting directly with a bridge. The agent understands natural language commands, automatically detects destination chains, compares cross-chain routes in real time, selects the optimal bridge, and executes the transfer on behalf of the user. It also integrates price alerts and automated trading logic, ensuring users get the best possible execution before bridging. This project makes cross-chain transfers as simple as sending a message.
-## 🎯 Problem
-Moving stablecoins from Celo to networks like Base, Solana, Ethereum, Arbitrum, or Polygon today requires users to:
-Choose a bridge manually
-Compare fees across platforms
-Check liquidity
-Connect multiple wallets
-Approve complex transactions
-Risk sending assets to unsupported addresses
-This process is error-prone, expensive, and inaccessible for most users.
-## 💡 Solution
-Osher Ai replaces manual bridging with an AI-powered autonomous agent that:
-Understands user intent in plain language
-Identifies destination wallet chains automatically
-Finds the cheapest + fastest + safest cross-chain route
-Validates addresses and asset compatibility before executing
-Provides clear feedback when a transfer cannot proceed
-Executes swaps when necessary to minimize costs
-Monitors prices and fees continuously
-Supports conditional, automated transfers
-Users simply say what they want — the agent does the rest.
-## 🤖 Core Features
-1. **Intent-Based Transfers**
-Users can say things like:
-“Send 100 USDT from Celo to this Solana wallet: 7xB2…”
-“Move 250 USDC from Celo to Base in the cheapest way.”
-The agent:
-Parses intent
-Detects the destination chain
-Selects the optimal bridge
-Executes the transfer
-2. **Smart Cross-Chain Routing**
-The agent evaluates multiple bridging providers, including:
-Wormhole
-LayerZero
-Axelar
-Hyperlane
-Portal Bridge
-Celer
-Across
-It optimizes for:
-Lowest fees
-Fastest delivery
-Highest success probability
-3. **Built-In Safety Guardrails**
-Before executing any transaction, the agent checks:
-Is the destination address valid?
-Does the chain support this token?
-Is liquidity sufficient?
-Are fees reasonable?
-If something is wrong, the agent explains clearly what needs to change (token, address, or route).
-4. **Price Alerts & Auto-Trading**
-Users can set conditions such as:
-“Alert me if bridging fees to Base drop below $1.”
-“Move my USDC to Solana only when gas is cheap.”
-“Swap my USDm to USDC before bridging if it saves money.”
-The agent can:
-Monitor prices across chains
-Compare cross-chain spreads
-Auto-swap assets before bridging
-Execute transfers only when conditions are met
-Example automated flow:
-Swap USDm → USDC on Celo
-Bridge USDC to Solana
-Convert USDC → USDT on Solana
-Deliver funds to user
-All autonomously.
-## 🏗️ High-Level Architecture
-Agent Layer
-Framework: JS + Claude compatible intent agent framework
-Capabilities:
-Natural language understanding
-Wallet detection
-Bridge selection
-Transaction orchestration
-Bridging Layer
-Connectors to multiple cross-chain protocols
-Real-time fee + liquidity comparison
-DEX Layer
-Uniswap
-Mento
-Curve
-Used for:
-Pre-bridge swaps
-Post-bridge conversions
-Data Layer
-Price oracles
-Gas monitors
-Liquidity trackers
-Wallet Layer
-WalletConnect / MiniPay
-Multi-chain support
-## 🌍 Supported Assets (Planned)
-Celo: USDm, USDC, USDT
-Destination chains:
-Solana
-Base
-Ethereum
-Arbitrum
-Polygon
-🧠 Example Use Cases
-Use Case 1 — Simple Transfer
-User:
-“Send 200 USDT to this Base wallet: 0xA12…”
-Agent:
-Detects Base
-Finds best bridge
-Executes transfer
-Returns transaction link
-Use Case 2 — Conditional Transfer
-User:
-“Move my stablecoins to Solana only if fees drop below $0.80.”
-Agent:
-Monitors fees
-Executes automatically when condition is met
-## 🔧 Roadmap
-Phase 1
-Basic intent parsing
-Wallet detection
-Single-bridge integration
-Phase 2
-Multi-bridge routing
-Safety validation layer
-Price monitoring
-Phase 3
-Auto-trading before bridging
-Conditional execution
-Dashboard UI
-Phase 4
-Support for more chains
-Reputation tracking
-Performance analytics
-## 🤝 Contributing
-Contributions are welcome! Please open issues or submit PRs with clear descriptions.
-### 📜 License
+## Overview
+Osher AI is being rebuilt as a Celo-only savings agent for emerging market users, starting with Nigeria. The current Step 1 baseline focuses on clean wallet connection, Celo balance checks, and wallet-signed Celo stablecoin top-ups before the savings vault and goal dashboard are added.
+
+The product direction is PiggyVest-style habit formation with savings held in USDT or other Celo stablecoins, plus an AI coach that helps users set goals, stay consistent, and understand their progress in plain language.
+
+## Current Baseline
+- Celo-only network support.
+- MiniPay as the primary wallet.
+- MetaMask as fallback for users who already hold Celo stablecoins.
+- Zero-value Celo login transaction after wallet connection to prove wallet control.
+- In-app chat endpoint for balance checks, goal drafts, alerts, and basic Celo transaction preparation.
+- Existing Render deployment shape is retained.
+
+## Supported Assets
+- USDT on Celo
+- USDC on Celo
+- USDm on Celo
+- CELO for network fees
+
+## Key User Flows
+1. User opens Osher AI.
+2. User connects MiniPay or MetaMask.
+3. Wallet submits a zero-value Celo transaction to prove control.
+4. User can check Celo balances or draft a savings goal in natural language.
+5. Future build steps will add real goal persistence, local-currency display, and OsherSavingsVault deposits.
+
+## API Endpoints
+- `POST /api/message` - chat and intent handling.
+- `POST /api/transaction-complete` - verify completed Celo transactions.
+- `GET /api/transaction/status` - check Celo/EVM transaction status.
+- `GET /api/network` - expose configured Celo network.
+- `GET /api/price` - basic token price lookup.
+- `GET /api/gas` - Celo/EVM gas data.
+
+## Setup
+```bash
+npm install
+npm start
+```
+
+Visit `http://localhost:3000`.
+
+## Environment Variables
+```bash
+NETWORK=mainnet
+OPENROUTER_API_KEY=sk-or-v1-...
+AI_MODEL=openrouter/free
+RPC_CELO=https://forno.celo.org
+PUBLIC_URL=https://your-render-url.onrender.com
+SERVICE_FEE_WALLET=0x...
+```
+
+## Next Build Steps
+- Add `OsherSavingsVault.sol`.
+- Add Supabase-backed users, wallets, goals, transactions, agent logs, tips, and recommendations.
+- Add local-currency display with a user-controlled USDT/local currency toggle.
+- Add weekly nudges, goal progress, streaks, and activity feed.
+- Add round-up savings and later explicit opt-in yield features.
+
+## License
 MIT

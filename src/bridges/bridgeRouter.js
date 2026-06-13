@@ -25,7 +25,6 @@ const CHAIN_IDS = {
   polygon:  { evmId: 137,   wormholeId: 5,  axelarName: "polygon",     layerzeroId: 109, acrossId: 137  },
   arbitrum: { evmId: 42161, wormholeId: 23, axelarName: "arbitrum",    layerzeroId: 110, acrossId: 42161},
   optimism: { evmId: 10,    wormholeId: 24, axelarName: "optimism",    layerzeroId: 111, acrossId: 10   },
-  solana:   { evmId: null,  wormholeId: 1,  axelarName: null,          layerzeroId: null, acrossId: null },
   bnb:      { evmId: 56,    wormholeId: 4,  axelarName: "binance",     layerzeroId: 102, acrossId: null },
 };
 
@@ -127,7 +126,7 @@ async function getAcrossQuote({ fromChain, toChain, token, amount }) {
     const fromChainId = CHAIN_IDS[fromChain]?.acrossId;
     const toChainId   = CHAIN_IDS[toChain]?.acrossId;
 
-    if (!fromChainId || !toChainId) return null; // Across doesn't support Solana
+    if (!fromChainId || !toChainId) return null;
 
     const tokenAddresses = config.TOKENS;
     const inputToken  = tokenAddresses[fromChain.toUpperCase()]?.[token];
@@ -165,13 +164,12 @@ async function getAcrossQuote({ fromChain, toChain, token, amount }) {
 }
 
 /**
- * Wormhole — Supports Solana + EVM
+ * Wormhole — EVM routes only in this Celo baseline
  * Docs: https://docs.wormhole.com
  * 🔑 No API key for basic usage
  */
 async function getWormholeQuote({ fromChain, toChain, token, amount }) {
   try {
-    // Wormhole supports Solana — important differentiator
     const fromId = CHAIN_IDS[fromChain]?.wormholeId;
     const toId   = CHAIN_IDS[toChain]?.wormholeId;
     if (!fromId || !toId) return null;
@@ -192,7 +190,7 @@ async function getWormholeQuote({ fromChain, toChain, token, amount }) {
         liquidityUSD:     10000000,
         rawQuote:         null,
         executionMethod:  "wormhole_ntt",
-        executionReady:   true,  // SDK installed via pnpm
+        executionReady:   false,
         note:             "Fee is estimated (live quote unavailable)",
       };
     }
@@ -206,7 +204,7 @@ async function getWormholeQuote({ fromChain, toChain, token, amount }) {
       liquidityUSD:     parseFloat(data.liquidity || 10000000),
       rawQuote:         data,
       executionMethod:  "wormhole_ntt",
-      executionReady:   true,  // SDK installed via pnpm
+      executionReady:   false,
     };
   } catch (err) {
     console.warn("[BridgeRouter] Wormhole quote failed:", err.message);

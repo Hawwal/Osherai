@@ -46,7 +46,7 @@ app.post("/api/message", async (req, res) => {
   }
 });
 app.post("/api/transaction-complete", async (req, res) => {
-  const { sessionId, signature, txHash, token, amount, chain } = req.body;
+  const { sessionId, txHash, token, amount, chain } = req.body;
   
   if (!sessionId) {
     return res.status(400).json({ error: "sessionId required" });
@@ -56,7 +56,6 @@ app.post("/api/transaction-complete", async (req, res) => {
     const { handleTransactionComplete } = require("./src/agent/orchestrator");
     
     const result = await handleTransactionComplete(sessionId, {
-      signature: signature || txHash, // Solana uses signature, EVM uses txHash
       txHash,
       token,
       amount,
@@ -90,36 +89,16 @@ app.get("/api/transaction/status", async (req, res) => {
   }
 
   try {
-    if (chain === 'solana') {
-      // Check Solana transaction
-      const { Connection } = require("@solana/web3.js");
-      const connection = new Connection(config.SOLANA.RPC_URL, "confirmed");
-      
-      const status = await connection.getSignatureStatus(txHash);
-      
-      if (!status.value) {
-        return res.json({ status: 'pending', confirmations: 0 });
-      }
-      
-      if (status.value.err) {
-        return res.json({ status: 'failed', error: status.value.err });
-      }
-      
-      if (status.value.confirmationStatus === 'finalized') {
-        return res.json({ status: 'confirmed', confirmations: 32 }); // Solana finality
-      }
-      
-      return res.json({ 
-        status: 'confirming', 
-        confirmations: status.value.confirmations || 1 
-      });
-      
-    } else {
-      // Check EVM transaction (Celo, Base, etc.)
-      const { ethers } = require("ethers");
-      const rpcUrl = config.RPC[chain.toUpperCase()] || config.RPC.CELO;
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-      
+    const { ethers } = require("ethers");
+    if (/^0x0{64}$/i.test(txHash)) {
+      return res.json({ status: 'pending', confirmations: 0 });
+    }
+
+    const rpcUrl = config.RPC[chain.toUpperCase()] || config.RPC.CELO;
+    const network = getStaticNetwork(chain);
+    const provider = new ethers.JsonRpcProvider(rpcUrl, network, { staticNetwork: true });
+
+    try {
       const receipt = await provider.getTransactionReceipt(txHash);
       
       if (!receipt) {
@@ -138,12 +117,31 @@ app.get("/api/transaction/status", async (req, res) => {
       } else {
         return res.json({ status: 'confirming', confirmations });
       }
+    } finally {
+      provider.destroy();
     }
   } catch (err) {
     console.error('[TX Status] Check failed:', err.message);
     res.json({ status: 'pending', confirmations: 0 });
   }
 });
+
+function getStaticNetwork(chain) {
+  const normalized = String(chain || "celo").toLowerCase();
+  if (normalized === "celo") {
+    return {
+      chainId: config.NETWORK === "mainnet" ? 42220 : 44787,
+      name: config.NETWORK === "mainnet" ? "celo" : "alfajores",
+    };
+  }
+  const networks = {
+    base: { chainId: 8453, name: "base" },
+    ethereum: { chainId: 1, name: "ethereum" },
+    polygon: { chainId: 137, name: "polygon" },
+    arbitrum: { chainId: 42161, name: "arbitrum" },
+  };
+  return networks[normalized] || { chainId: 42220, name: "celo" };
+}
 
 app.get("/api/fees", async (req, res) => {
   const { fromChain = "celo", toChain, token = "USDC", amount = 100 } = req.query;

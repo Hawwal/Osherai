@@ -33,8 +33,6 @@ services:
         sync: false
       - key: RPC_ARBITRUM
         sync: false
-      - key: RPC_SOLANA
-        sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: WHATSAPP_TOKEN

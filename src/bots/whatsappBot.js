@@ -361,7 +361,7 @@ async function sendHelpMessage(to) {
     `Just type naturally! Examples:\n\n` +
     `💸 *Transfers:*\n` +
     `• "Send 100 USDT to 0xA1B2..."\n` +
-    `• "Move 250 USDC to Solana wallet 7xB2..."\n` +
+    `• "Save 150,000 naira for rent by December"\n` +
     `• "Bridge 500 USDm to Base cheapest way"\n\n` +
     `🔔 *Alerts:*\n` +
     `• "Alert me when fees drop below $0.50"\n` +

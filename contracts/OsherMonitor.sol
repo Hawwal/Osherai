@@ -74,7 +74,7 @@ contract OsherMonitor {
         uint256 amount,              // Transfer amount (token decimals)
         uint256 feeCharged,          // Fee taken (token decimals)
         string  fromChain,           // Always "celo" for this contract
-        string  toChain,             // "base", "ethereum", "polygon", "arbitrum", "solana"
+        string  toChain,             // "base", "ethereum", "polygon", "arbitrum"
         string  bridge,              // "Axelar", "Wormhole", "LayerZero", "Celer"
         string  toAddress,           // Destination address (string for cross-chain compat)
         uint256 timestamp
