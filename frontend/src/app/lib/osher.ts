@@ -5,6 +5,9 @@ export type WalletInfo = {
   walletType?: WalletType;
   chainId?: number;
   loginTxHash?: string;
+  loginSignature?: string;
+  loginMessage?: string;
+  loginSignedAt?: string;
 };
 
 export type SavingsGoal = {
@@ -96,6 +99,10 @@ export function isMetaMask() {
   return typeof window !== 'undefined' && (window as any).ethereum?.isMetaMask === true && !(window as any).ethereum?.isMiniPay;
 }
 
+export function hasManualWalletDisconnect() {
+  return localStorage.getItem('osher_wallet_disconnect_requested') === 'true';
+}
+
 export async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...options,
@@ -150,6 +157,30 @@ export async function ensureCeloNetwork(networkConfig: NetworkConfig) {
   }
 }
 
+function buildLoginMessage(address: string, walletType: WalletType) {
+  const signedAt = new Date().toISOString();
+  const message = [
+    'Osher AI Login Proof',
+    '',
+    `Wallet: ${address}`,
+    `Wallet type: ${walletType === 'minipay' ? 'MiniPay' : 'MetaMask'}`,
+    `Session: ${SESSION_ID}`,
+    `Timestamp: ${signedAt}`,
+    '',
+    'Signing this message proves you control this wallet.',
+    'No gas fee or payment is charged.',
+  ].join('\n');
+  return { message, signedAt };
+}
+
+export async function requestLoginSignature(address: string, walletType: WalletType) {
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) throw new Error('No wallet provider detected.');
+  const { message, signedAt } = buildLoginMessage(address, walletType);
+  const loginSignature = await ethereum.request({ method: 'personal_sign', params: [message, address] });
+  return { loginSignature, loginMessage: message, loginSignedAt: signedAt };
+}
+
 export async function connectWallet(walletType: WalletType | 'auto', networkConfig: NetworkConfig): Promise<WalletInfo> {
   const ethereum = (window as any).ethereum;
   const resolved: WalletType = walletType === 'auto' ? (isMiniPay() ? 'minipay' : 'metamask') : walletType;
@@ -160,14 +191,12 @@ export async function connectWallet(walletType: WalletType | 'auto', networkConf
   const address = accounts?.[0];
   if (!address) throw new Error('No account returned by wallet.');
   await ensureCeloNetwork(networkConfig);
-  const loginTxHash = await ethereum.request({
-    method: 'eth_sendTransaction',
-    params: [{ from: address, to: address, value: '0x0', data: '0x' }],
-  });
+  const loginProof = await requestLoginSignature(address, resolved);
   const chainId = await ethereum.request({ method: 'eth_chainId' });
-  const walletInfo: WalletInfo = { address, walletType: resolved, chainId: parseInt(chainId, 16), loginTxHash };
+  const walletInfo: WalletInfo = { address, walletType: resolved, chainId: parseInt(chainId, 16), ...loginProof };
   await apiJson('/api/wallet/connect', { method: 'POST', body: JSON.stringify({ sessionId: SESSION_ID, walletInfo }) }).catch(() => null);
   localStorage.setItem('osher_wallet_info', JSON.stringify(walletInfo));
+  localStorage.removeItem('osher_wallet_disconnect_requested');
   return walletInfo;
 }
 
@@ -177,6 +206,13 @@ export function loadStoredWallet(): WalletInfo {
 
 export function clearStoredWallet() {
   localStorage.removeItem('osher_wallet_info');
+  localStorage.setItem('osher_wallet_disconnect_requested', 'true');
+}
+
+export function getUserDisplayName() {
+  const raw = localStorage.getItem('osher_user_name') || '';
+  const clean = raw.trim();
+  return clean || 'there';
 }
 
 export function shortAddress(address?: string) {

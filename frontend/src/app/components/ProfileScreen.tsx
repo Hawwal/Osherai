@@ -2,15 +2,17 @@ import { useState } from "react";
 import { ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import osherLogo from "../../imports/Osher_wallet_logo.png";
+import { WalletInfo, shortAddress } from "../lib/osher";
 
-const SECTIONS = [
-  {
-    title: "Account",
-    items: [
-      { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: "Hawwal Olawale" },
-      { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: "MiniPay · 0x1A2b…3cD4" },
-    ],
-  },
+interface Props {
+  userName?: string;
+  walletInfo?: WalletInfo;
+  displayMode?: "local" | "usdt";
+  onDisplayModeChange?: (mode: "local" | "usdt") => void;
+  onDisconnect?: () => void;
+}
+
+const PREFERENCE_SECTIONS = [
   {
     title: "Preferences",
     items: [
@@ -27,8 +29,22 @@ const SECTIONS = [
   },
 ];
 
-export function ProfileScreen(_props: any = {}) {
+export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayModeChange, onDisconnect }: Props = {}) {
   const [usd, setUsd] = useState(false);
+  const displayName = userName || "there";
+  const walletLabel = walletInfo?.address
+    ? `${walletInfo.walletType === "minipay" ? "MiniPay" : "MetaMask"} · ${shortAddress(walletInfo.address)}`
+    : "No wallet connected";
+  const sections = [
+    {
+      title: "Account",
+      items: [
+        { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : displayName },
+        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletLabel },
+      ],
+    },
+    ...PREFERENCE_SECTIONS,
+  ];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-28" style={{ background: "#f5f5fb", scrollbarWidth: "none" }}>
@@ -47,8 +63,8 @@ export function ProfileScreen(_props: any = {}) {
               />
             </div>
             <div>
-              <p className="font-display" style={{ fontWeight: 800, fontSize: "1.1rem", color: "#fff", letterSpacing: "-0.01em" }}>Hawwal Olawale</p>
-              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>hawwal@osher.finance</p>
+              <p className="font-display" style={{ fontWeight: 800, fontSize: "1.1rem", color: "#fff", letterSpacing: "-0.01em" }}>{displayName === "there" ? "Osher Saver" : displayName}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{walletLabel}</p>
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf75", display: "inline-block" }} />
                 <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>Verified · 🔥 6-week streak</span>
@@ -78,7 +94,10 @@ export function ProfileScreen(_props: any = {}) {
           <p style={{ fontSize: "0.75rem", color: "#9a9ab8", marginTop: 1 }}>Display all balances in USD alongside local currency</p>
         </div>
         <button
-          onClick={() => setUsd(!usd)}
+          onClick={() => {
+            setUsd(!usd);
+            onDisplayModeChange?.(displayMode === "usdt" ? "local" : "usdt");
+          }}
           className="flex-shrink-0"
           style={{
             width: 48, height: 28, borderRadius: 14,
@@ -104,7 +123,7 @@ export function ProfileScreen(_props: any = {}) {
       </div>
 
       {/* Settings sections */}
-      {SECTIONS.map((s) => (
+      {sections.map((s) => (
         <div key={s.title} className="px-4 mb-4">
           <p style={{ fontSize: "0.68rem", fontWeight: 700, color: "#b0b0c8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8, paddingLeft: 4 }}>{s.title}</p>
           <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
@@ -130,7 +149,7 @@ export function ProfileScreen(_props: any = {}) {
 
       {/* Sign out */}
       <div className="px-4 mt-1">
-        <button className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#fff5f5", color: "#c0392b", fontWeight: 600, fontSize: "0.875rem", border: "1px solid rgba(192,57,43,0.12)" }}>
+        <button onClick={onDisconnect} className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#fff5f5", color: "#c0392b", fontWeight: 600, fontSize: "0.875rem", border: "1px solid rgba(192,57,43,0.12)" }}>
           <LogOut size={15} /> Sign Out
         </button>
       </div>

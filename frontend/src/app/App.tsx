@@ -28,9 +28,12 @@ import {
   cleanWalletError,
   clearStoredWallet,
   connectWallet,
+  getUserDisplayName,
+  hasManualWalletDisconnect,
   encodeErc20Approve,
   encodeVaultCreateGoal,
   encodeVaultDeposit,
+  isMiniPay,
   loadAppData,
   loadNetworkConfig,
   loadStoredWallet,
@@ -65,8 +68,10 @@ export default function App() {
   const [networkConfig, setNetworkConfig] = useState<any>(null);
   const [data, setData] = useState<AppData>(EMPTY_DATA);
   const [notice, setNotice] = useState('');
+  const [miniPayLaunchProofRequested, setMiniPayLaunchProofRequested] = useState(false);
 
   const selectedGoal = useMemo(() => data.goals.find(goal => goal.id === selectedGoalId) || data.goals[0], [data.goals, selectedGoalId]);
+  const userDisplayName = getUserDisplayName();
 
   useEffect(() => {
     loadNetworkConfig().then(setNetworkConfig).catch(() => null);
@@ -86,6 +91,12 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    if (!networkConfig || miniPayLaunchProofRequested || !isMiniPay() || hasManualWalletDisconnect()) return;
+    setMiniPayLaunchProofRequested(true);
+    handleWalletConnect('minipay');
+  }, [networkConfig, miniPayLaunchProofRequested]);
+
   const refreshData = async () => {
     const next = await loadAppData(walletInfo, displayMode);
     setData(next);
@@ -97,13 +108,13 @@ export default function App() {
 
   const handleWalletConnect = async (walletType: WalletType | 'auto' = 'auto') => {
     try {
-      setNotice('Requesting wallet access...');
       if (!networkConfig) throw new Error('Celo network config is still loading. Try again in a moment.');
-      setNotice('Submitting Celo login proof. This may require a small network fee.');
+      setNotice('Requesting wallet access...');
+      setNotice('Waiting for your free login signature. No gas or payment is charged.');
       const info = await connectWallet(walletType, networkConfig);
       setWalletInfo(info);
       setFlow('app');
-      setNotice('Wallet connected and login proof submitted.');
+      setNotice('Wallet connected and login signature saved.');
       await refreshData();
     } catch (err) {
       setNotice(cleanWalletError(err));
@@ -261,15 +272,15 @@ export default function App() {
 
     switch (tab) {
       case 'home':
-        return <HomeScreen data={data} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setTab('chat')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
+        return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setTab('chat')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
       case 'goals':
         return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
       case 'chat':
-        return <AIChatScreen onSendMessage={sendMessage} onDataChanged={refreshData} />;
+        return <AIChatScreen userName={userDisplayName} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':
         return <TipsScreen tips={data.tips} />;
       case 'profile':
-        return <ProfileScreen walletInfo={walletInfo} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} />;
+        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} />;
       default:
         return null;
     }
@@ -281,7 +292,7 @@ export default function App() {
         className="relative overflow-hidden flex flex-col"
         style={{
           width: 'min(430px, 100vw)',
-          height: 'min(932px, 100vh)',
+          height: 'min(932px, 100dvh)',
           background: '#f8f8fd',
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           boxShadow: '0 8px 60px rgba(0,0,0,0.18)',

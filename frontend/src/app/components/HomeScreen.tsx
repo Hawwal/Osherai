@@ -7,6 +7,7 @@ import { AppData, SavingsGoal, categoryEmoji, formatGoalAmount, formatNumber } f
 interface Props {
   data: AppData;
   displayMode: 'local' | 'usdt';
+  userName?: string;
   onDisplayModeChange: (mode: 'local' | 'usdt') => void;
   onGoalClick: (goal?: SavingsGoal) => void;
   onChatClick: () => void;
@@ -16,7 +17,7 @@ interface Props {
   onWeeklyNudge: () => void;
 }
 
-export function HomeScreen({ data, displayMode, onDisplayModeChange, onGoalClick, onChatClick, onNotifClick, onAddGoal, onTopUp, onWeeklyNudge }: Props) {
+export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, onGoalClick, onChatClick, onNotifClick, onAddGoal, onTopUp, onWeeklyNudge }: Props) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const goals = data.goals.slice(0, 2);
   const activeGoals = Number(data.dashboard.activeGoalCount || data.goals.filter(goal => goal.status === 'active').length);
@@ -31,7 +32,7 @@ export function HomeScreen({ data, displayMode, onDisplayModeChange, onGoalClick
           <div style={{ width: 42, height: 42, borderRadius: 14, overflow: 'hidden', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', flexShrink: 0 }}>
             <ImageWithFallback src={osherLogo} alt="Osher AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <div><p style={{ fontSize: '0.72rem', color: '#9a9ab8', fontWeight: 500 }}>Good morning,</p><p className="font-display" style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0d0d14', letterSpacing: '-0.01em' }}>Hawwal</p></div>
+          <div><p style={{ fontSize: '0.72rem', color: '#9a9ab8', fontWeight: 500 }}>Good morning,</p><p className="font-display" style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0d0d14', letterSpacing: '-0.01em' }}>{userName || 'there'}</p></div>
         </div>
         <button onClick={onNotifClick} className="relative flex items-center justify-center" style={{ width: 42, height: 42, borderRadius: 14, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}>
           <Bell size={19} color="#0d0d14" />

@@ -11,10 +11,11 @@ interface Props {
 
 export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
   const connected = Boolean(walletInfo?.address);
+  const loginProof = walletInfo?.loginSignature || walletInfo?.loginTxHash;
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="px-6 pt-14 pb-8">
+    <div className="flex flex-col h-full min-h-0 bg-background">
+      <div className="px-6 pt-14 pb-6 flex-shrink-0">
         <div className="flex items-center gap-2.5 mb-6">
           <div style={{ width: 38, height: 38, borderRadius: 12, overflow: 'hidden', background: '#f5f5fb', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.09)' }}>
             <ImageWithFallback src={osherLogo} alt="Osher AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -25,16 +26,16 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
           Connect your<br />wallet
         </h1>
         <p style={{ color: '#6b6b8a', marginTop: 8, fontSize: '0.875rem', lineHeight: 1.6 }}>
-          Your savings are held non-custodially on the Celo network. Osher asks for a zero-value login proof after connection; this may still require a small network fee.
+          Your savings are held non-custodially on Celo. Osher asks for a free login signature after connection; no gas fee or payment is charged.
         </p>
       </div>
 
-      <div className="flex-1 px-5 flex flex-col gap-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex-1 min-h-0 px-5 flex flex-col gap-4 overflow-y-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 28 }}>
         {connected && (
           <div className="rounded-3xl p-5" style={{ background: '#e8f5ec', border: '1px solid rgba(76,175,117,0.2)' }}>
             <p className="font-display" style={{ fontWeight: 800, color: '#0d0d14', fontSize: '1rem' }}>Connected</p>
             <p style={{ fontSize: '0.82rem', color: '#2d7a47', marginTop: 4 }}>{walletInfo?.walletType === 'minipay' ? 'MiniPay' : 'MetaMask'} · {shortAddress(walletInfo?.address)}</p>
-            {walletInfo?.loginTxHash && <p style={{ fontSize: '0.72rem', color: '#6b6b8a', marginTop: 6 }}>Login proof {walletInfo.loginTxHash.slice(0, 12)}...{walletInfo.loginTxHash.slice(-8)}</p>}
+            {loginProof && <p style={{ fontSize: '0.72rem', color: '#6b6b8a', marginTop: 6 }}>Login signature {loginProof.slice(0, 12)}...{loginProof.slice(-8)}</p>}
             <button onClick={onDisconnect} className="mt-4 px-4 py-2 rounded-xl" style={{ background: '#fff', color: '#2d7a47', fontWeight: 700, fontSize: '0.82rem' }}>Disconnect</button>
           </div>
         )}
@@ -85,7 +86,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
         </div>
       </div>
 
-      <div className="px-5 pb-8 pt-4"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>
+      <div className="px-5 pb-8 pt-4 flex-shrink-0"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>
     </div>
   );
 }

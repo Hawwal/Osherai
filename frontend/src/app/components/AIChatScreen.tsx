@@ -11,12 +11,13 @@ const PROMPTS = [
 ];
 
 interface Message { role: 'user' | 'ai'; text: string; ts: string; }
-interface Props { onSendMessage: (message: string) => Promise<string>; onDataChanged: () => Promise<void> | void; }
+interface Props { userName?: string; onSendMessage: (message: string) => Promise<string>; onDataChanged: () => Promise<void> | void; }
 
 function now() { return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); }
+function greetingName(name?: string) { return (name || '').trim() || 'there'; }
 
-export function AIChatScreen({ onSendMessage, onDataChanged }: Props) {
-  const [messages, setMessages] = useState<Message[]>([{ role: 'ai', text: "Hi Hawwal! I'm your Osher AI savings coach. Tell me your savings goal and I'll create a personalised plan just for you.", ts: now() }]);
+export function AIChatScreen({ userName, onSendMessage, onDataChanged }: Props) {
+  const [messages, setMessages] = useState<Message[]>([{ role: 'ai', text: `Hi ${greetingName(userName)}! I'm your Osher AI savings coach. Tell me your savings goal and I'll create a personalised plan just for you.`, ts: now() }]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
