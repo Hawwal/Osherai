@@ -4,7 +4,7 @@
  verification in Nigeria. Project verification is available on karma, 8004 with agent id 131, and selfclaw.
 
 ## Overview
-Osher AI is being rebuilt as a Celo-only savings agent for emerging market users, starting with Nigeria. The current baseline supports clean wallet connection, Celo balance checks, goal planning with local-currency display, persistence foundations, and a tested savings vault contract.
+Osher AI is a savings agent for emerging market users that can help save autonomously, invest and provide financial advise tips to improve the your fintech experience.
 
 The product direction is PiggyVest-style habit formation with savings held in USDT or other Celo stablecoins, plus an AI coach that helps users set goals, stay consistent, and understand their progress in plain language.
 
