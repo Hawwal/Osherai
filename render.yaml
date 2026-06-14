@@ -3,10 +3,12 @@ services:
     name: crossflow-agent
     runtime: node
     plan: free
-    buildCommand: npm install
-    startCommand: node server.js
+    buildCommand: npm install && npm run build:frontend
+    startCommand: npm start
     healthCheckPath: /api/network
     envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: NODE_ENV
         value: production
       - key: PORT

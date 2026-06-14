@@ -43,12 +43,21 @@ const io     = new Server(server, {
 
 app.use(cors({ origin: config.SERVER.CORS_ORIGIN }));
 app.use(express.json());
+const fs = require("fs");
 const frontendDir = path.join(__dirname, "frontend");
 const frontendDistDir = path.join(frontendDir, "dist");
-if (require("fs").existsSync(frontendDistDir)) {
+const frontendDistIndex = path.join(frontendDistDir, "index.html");
+const hasBuiltFrontend = fs.existsSync(frontendDistIndex);
+
+if (hasBuiltFrontend) {
   app.use(express.static(frontendDistDir));
+} else {
+  console.warn("[frontend] Missing frontend/dist/index.html. Run npm run build:frontend before starting production.");
 }
-app.use(express.static(frontendDir));
+
+app.use("/.well-known", express.static(path.join(frontendDir, ".well-known")));
+app.get("/admin.html", (req, res) => res.sendFile(path.join(frontendDir, "admin.html")));
+app.get("/logo.svg", (req, res) => res.sendFile(path.join(frontendDir, "logo.svg")));
 
 app.get("/.well-known/agent-registration.json", (req, res) => {
   res.type("application/json");
@@ -414,6 +423,14 @@ setInterval(async () => {
     console.log(`[WeeklyNudges] Generated ${result.count} weekly summaries.`);
   }
 }, 60 * 60 * 1000);
+
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/")) return next();
+  if (!hasBuiltFrontend) {
+    return res.status(503).type("html").send('<!doctype html><title>Osher AI</title><div style="font-family:system-ui;padding:24px"><h1>Osher AI frontend is not built</h1><p>Run <code>npm run build:frontend</code>, then restart the server.</p></div>');
+  }
+  res.sendFile(frontendDistIndex);
+});
 
 // ── Start ─────────────────────────────────────────────────────────
 

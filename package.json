@@ -4,7 +4,7 @@
   "description": "Osher AI Celo savings agent baseline",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/ensure-frontend-dist.js && node server.js",
     "dev": "nodemon server.js",
     "compile": "hardhat compile",
     "test": "hardhat test",
@@ -14,7 +14,8 @@
     "verify:celo": "hardhat run scripts/verify-celo.js --network celo",
     "fees:withdraw": "hardhat run scripts/withdraw-fees.js --network celo",
     "build:frontend": "vite build && node scripts/fix-frontend-html.js",
-    "build": "npm run build:frontend && hardhat compile"
+    "build": "npm run build:frontend && hardhat compile",
+    "start:server": "node server.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
