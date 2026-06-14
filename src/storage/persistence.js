@@ -7,6 +7,9 @@ const memory = {
   goalsByUser: new Map(),
   agentLogsByUser: new Map(),
   transactionsByUser: new Map(),
+  tipsByUser: new Map(),
+  recommendationsByUser: new Map(),
+  nudgesByUser: new Map(),
 };
 
 function isSupabaseConfigured() {
@@ -182,6 +185,173 @@ async function recordTransaction(userId, tx) {
   return records?.[0] || record;
 }
 
+async function listTransactions(userId, limit = 50) {
+  if (!isSupabaseConfigured()) {
+    return (memory.transactionsByUser.get(userId) || []).slice(0, limit);
+  }
+
+  return await supabaseRequest("/transactions", {
+    query: {
+      user_id: `eq.${userId}`,
+      order: "created_at.desc",
+      limit: String(limit),
+    },
+  });
+}
+
+async function saveTip(userId, tip) {
+  const record = {
+    id: tip.id || `tip_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    user_id: userId,
+    category: tip.category || "consistency_coaching",
+    generated_text: tip.generatedText || tip.generated_text || "",
+    delivered_via: tip.deliveredVia || tip.delivered_via || "tips_tab",
+    seen_at: tip.seenAt || tip.seen_at || null,
+    created_at: tip.createdAt || tip.created_at || new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    const tips = memory.tipsByUser.get(userId) || [];
+    tips.unshift(record);
+    memory.tipsByUser.set(userId, tips.slice(0, 100));
+    return recordToTip(record);
+  }
+
+  const records = await supabaseRequest("/savings_tips", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: [record],
+  });
+  return recordToTip(records?.[0] || record);
+}
+
+async function listTips(userId, limit = 20) {
+  if (!isSupabaseConfigured()) {
+    return (memory.tipsByUser.get(userId) || []).slice(0, limit).map(recordToTip);
+  }
+
+  const records = await supabaseRequest("/savings_tips", {
+    query: {
+      user_id: `eq.${userId}`,
+      order: "created_at.desc",
+      limit: String(limit),
+    },
+  });
+  return (records || []).map(recordToTip);
+}
+
+async function saveRecommendation(userId, recommendation) {
+  const record = {
+    id: recommendation.id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    user_id: userId,
+    suggested_goal_name: recommendation.suggestedGoalName,
+    suggested_category: recommendation.suggestedCategory,
+    suggested_amount_usdt: Number(recommendation.suggestedAmountUSDT || 0),
+    reasoning_text: recommendation.reasoningText || "",
+    status: recommendation.status || "pending",
+    created_at: recommendation.createdAt || new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    const recommendations = memory.recommendationsByUser.get(userId) || [];
+    const next = upsertById(recommendations, record);
+    memory.recommendationsByUser.set(userId, next);
+    return recordToRecommendation(record);
+  }
+
+  const records = await supabaseRequest("/recommendations", {
+    method: "POST",
+    query: { on_conflict: "id" },
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: [record],
+  });
+  return recordToRecommendation(records?.[0] || record);
+}
+
+async function listRecommendations(userId, status = "pending", limit = 20) {
+  if (!isSupabaseConfigured()) {
+    return (memory.recommendationsByUser.get(userId) || [])
+      .filter(record => !status || record.status === status)
+      .slice(0, limit)
+      .map(recordToRecommendation);
+  }
+
+  const query = {
+    user_id: `eq.${userId}`,
+    order: "created_at.desc",
+    limit: String(limit),
+  };
+  if (status) query.status = `eq.${status}`;
+
+  const records = await supabaseRequest("/recommendations", { query });
+  return (records || []).map(recordToRecommendation);
+}
+
+async function updateRecommendationStatus(userId, recommendationId, status) {
+  if (!isSupabaseConfigured()) {
+    const recommendations = memory.recommendationsByUser.get(userId) || [];
+    const index = recommendations.findIndex(record => record.id === recommendationId);
+    if (index === -1) return null;
+    recommendations[index] = { ...recommendations[index], status };
+    memory.recommendationsByUser.set(userId, recommendations);
+    return recordToRecommendation(recommendations[index]);
+  }
+
+  const records = await supabaseRequest("/recommendations", {
+    method: "PATCH",
+    query: {
+      id: `eq.${recommendationId}`,
+      user_id: `eq.${userId}`,
+    },
+    headers: { Prefer: "return=representation" },
+    body: { status },
+  });
+  return records?.[0] ? recordToRecommendation(records[0]) : null;
+}
+
+async function saveNudge(userId, nudge) {
+  const record = {
+    id: nudge.id || `nudge_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    user_id: userId,
+    goal_id: nudge.goalId || nudge.goal_id || null,
+    channel: nudge.channel || "in_app",
+    message: nudge.message || "",
+    status: nudge.status || "queued",
+    scheduled_for: nudge.scheduledFor || nudge.scheduled_for || null,
+    sent_at: nudge.sentAt || nudge.sent_at || null,
+    created_at: nudge.createdAt || nudge.created_at || new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    const nudges = memory.nudgesByUser.get(userId) || [];
+    nudges.unshift(record);
+    memory.nudgesByUser.set(userId, nudges.slice(0, 100));
+    return recordToNudge(record);
+  }
+
+  const records = await supabaseRequest("/nudges", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: [record],
+  });
+  return recordToNudge(records?.[0] || record);
+}
+
+async function listNudges(userId, limit = 20) {
+  if (!isSupabaseConfigured()) {
+    return (memory.nudgesByUser.get(userId) || []).slice(0, limit).map(recordToNudge);
+  }
+
+  const records = await supabaseRequest("/nudges", {
+    query: {
+      user_id: `eq.${userId}`,
+      order: "created_at.desc",
+      limit: String(limit),
+    },
+  });
+  return (records || []).map(recordToNudge);
+}
+
 async function supabaseRequest(path, options = {}) {
   const url = new URL(`${config.SUPABASE.URL.replace(/\/$/, "")}/rest/v1${path}`);
   for (const [key, value] of Object.entries(options.query || {})) {
@@ -229,6 +399,11 @@ function goalToRecord(userId, goal) {
     days_remaining: goal.daysRemaining,
     exchange_rate: goal.exchangeRate || null,
     original_message: goal.originalMessage || null,
+    vault_goal_id: goal.vaultGoalId || null,
+    vault_goal_created: Boolean(goal.vaultGoalCreated),
+    vault_goal_status: goal.vaultGoalStatus || null,
+    vault_create_tx_hash: goal.vaultCreateTxHash || null,
+    last_deposit_tx_hash: goal.lastDepositTxHash || null,
     created_at: goal.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -254,6 +429,11 @@ function recordToGoal(record) {
     daysRemaining: Number(record.days_remaining || 0),
     exchangeRate: record.exchange_rate,
     originalMessage: record.original_message,
+    vaultGoalId: record.vault_goal_id,
+    vaultGoalCreated: Boolean(record.vault_goal_created),
+    vaultGoalStatus: record.vault_goal_status,
+    vaultCreateTxHash: record.vault_create_tx_hash,
+    lastDepositTxHash: record.last_deposit_tx_hash,
   };
 }
 
@@ -279,6 +459,42 @@ function toCamelWallet(wallet) {
   };
 }
 
+function recordToTip(record) {
+  return {
+    id: record.id,
+    category: record.category,
+    generatedText: record.generated_text,
+    deliveredVia: record.delivered_via,
+    seenAt: record.seen_at,
+    createdAt: record.created_at,
+  };
+}
+
+function recordToRecommendation(record) {
+  return {
+    id: record.id,
+    suggestedGoalName: record.suggested_goal_name,
+    suggestedCategory: record.suggested_category,
+    suggestedAmountUSDT: Number(record.suggested_amount_usdt || 0),
+    reasoningText: record.reasoning_text,
+    status: record.status,
+    createdAt: record.created_at,
+  };
+}
+
+function recordToNudge(record) {
+  return {
+    id: record.id,
+    goalId: record.goal_id,
+    channel: record.channel,
+    message: record.message,
+    status: record.status,
+    scheduledFor: record.scheduled_for,
+    sentAt: record.sent_at,
+    createdAt: record.created_at,
+  };
+}
+
 function upsertById(records, record) {
   const index = records.findIndex(item => item.id === record.id);
   if (index === -1) return [record, ...records];
@@ -300,6 +516,14 @@ module.exports = {
   logAgentAction,
   listAgentLogs,
   recordTransaction,
+  listTransactions,
+  saveTip,
+  listTips,
+  saveRecommendation,
+  listRecommendations,
+  updateRecommendationStatus,
+  saveNudge,
+  listNudges,
   resolveUserId,
   getPersistenceStatus,
   isSupabaseConfigured,

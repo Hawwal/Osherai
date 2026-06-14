@@ -10,7 +10,23 @@ const http       = require("http");
 const { Server } = require("socket.io");
 
 const config                  = require("./config/keys");
-const { handleUserMessage, getGoalsForSession, syncWalletForSession, getPersistenceStatus } = require("./src/agent/orchestrator");
+const {
+  handleUserMessage,
+  getGoalsForSession,
+  markVaultGoalCreated,
+  recordVaultDeposit,
+  getActivityForSession,
+  getDashboardForSession,
+  setRoundUpPreference,
+  logManualSpend,
+  getTipsForSession,
+  getRecommendationsForSession,
+  updateRecommendation,
+  getWeeklyNudgeForSession,
+  runWeeklyNudgesForActiveSessions,
+  syncWalletForSession,
+  getPersistenceStatus,
+} = require("./src/agent/orchestrator");
 const { startAlertPolling, getAlertsForSession, cancelAlert,
         getCurrentBridgeFees, getTokenPrice, getGasPrices } = require("./src/trading/alertEngine");
 const { handleTelegramUpdate, registerWebhook: registerTelegramWebhook } = require("./src/bots/telegramBot");
@@ -49,6 +65,102 @@ app.post("/api/message", async (req, res) => {
 app.get("/api/goals/:sessionId", async (req, res) => {
   try {
     res.json(await getGoalsForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId/:goalId/vault-created", async (req, res) => {
+  try {
+    const result = await markVaultGoalCreated(req.params.sessionId, req.params.goalId, req.body || {});
+    res.status(result.success ? 200 : 404).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId/:goalId/deposit-confirmed", async (req, res) => {
+  try {
+    const result = await recordVaultDeposit(req.params.sessionId, req.params.goalId, req.body || {});
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/activity/:sessionId", async (req, res) => {
+  try {
+    res.json(await getActivityForSession(req.params.sessionId, Number(req.query.limit || 25)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/dashboard/:sessionId", async (req, res) => {
+  try {
+    res.json(await getDashboardForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/roundups/:sessionId/:goalId/preference", async (req, res) => {
+  try {
+    const result = await setRoundUpPreference(req.params.sessionId, req.params.goalId, req.body?.enabled);
+    res.status(result.success ? 200 : 404).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/roundups/:sessionId/:goalId/spend", async (req, res) => {
+  try {
+    const result = await logManualSpend(req.params.sessionId, {
+      ...req.body,
+      goalId: req.params.goalId,
+    });
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/tips/:sessionId", async (req, res) => {
+  try {
+    res.json(await getTipsForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/recommendations/:sessionId", async (req, res) => {
+  try {
+    res.json(await getRecommendationsForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/recommendations/:sessionId/:recommendationId", async (req, res) => {
+  try {
+    const result = await updateRecommendation(req.params.sessionId, req.params.recommendationId, req.body?.status);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/nudges/:sessionId/weekly", async (req, res) => {
+  try {
+    res.json(await getWeeklyNudgeForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/nudges/run-weekly", async (_, res) => {
+  try {
+    res.json(await runWeeklyNudgesForActiveSessions());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -280,6 +392,23 @@ startAlertPolling(async (alertId, alert) => {
     io.to(alert.sessionId).emit("auto_transfer", response);
   }
 });
+
+let lastWeeklyNudgeKey = "";
+setInterval(async () => {
+  const now = new Date();
+  const runKey = now.toISOString().slice(0, 10);
+  const isSundayNine = now.getDay() === 0 && now.getHours() === 9;
+  if (!isSundayNine || lastWeeklyNudgeKey === runKey) return;
+
+  lastWeeklyNudgeKey = runKey;
+  const result = await runWeeklyNudgesForActiveSessions().catch(err => {
+    console.error("[WeeklyNudges] Scheduled run failed:", err.message);
+    return null;
+  });
+  if (result) {
+    console.log(`[WeeklyNudges] Generated ${result.count} weekly summaries.`);
+  }
+}, 60 * 60 * 1000);
 
 // ── Start ─────────────────────────────────────────────────────────
 

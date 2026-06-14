@@ -11,7 +11,14 @@ const config = require("../../config/keys");
 const { parseIntent, generateTransactionPreview, explainError } = require("./intentParser");
 const { validateTransfer } = require("../utils/validator");
 const { getBestBridgeRoute } = require("../bridges/bridgeRouter");
-const { createSavingsGoalPlan, summarizeGoalPlan, formatDisplayAmount } = require("../utils/savingsPlanner");
+const {
+  createSavingsGoalPlan,
+  summarizeGoalPlan,
+  formatDisplayAmount,
+  normalizeDisplayCurrency,
+  convertDisplayToUSDT,
+  convertUSDTToDisplay,
+} = require("../utils/savingsPlanner");
 const persistence = require("../storage/persistence");
 const logger = require("../utils/errorLogger");
 
@@ -598,6 +605,354 @@ async function getGoalsForSession(sessionId) {
   };
 }
 
+async function markVaultGoalCreated(sessionId, goalId, vaultData = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) {
+    return { success: false, error: "Goal not found" };
+  }
+
+  const updatedGoal = {
+    ...goal,
+    vaultGoalId: vaultData.vaultGoalId || goal.vaultGoalId,
+    vaultGoalCreated: true,
+    vaultGoalStatus: "created",
+    vaultCreateTxHash: vaultData.txHash || goal.vaultCreateTxHash,
+  };
+
+  const savedGoal = await safePersist("save vault goal status", () => persistence.saveGoal(session.userId, updatedGoal), updatedGoal);
+  session.goals = upsertGoal(session.goals, savedGoal);
+
+  await safePersist("log vault goal creation", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "vault_goal_created",
+    message: `${savedGoal.name} is ready on-chain for USDT top-ups.`,
+    txHash: vaultData.txHash,
+  }));
+
+  return {
+    success: true,
+    goal: savedGoal,
+    goals: session.goals,
+  };
+}
+
+async function recordVaultDeposit(sessionId, goalId, deposit = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) {
+    return { success: false, error: "Goal not found" };
+  }
+
+  const amountUSDT = Number(deposit.amountUSDT || deposit.amount || 0);
+  if (!Number.isFinite(amountUSDT) || amountUSDT <= 0) {
+    return { success: false, error: "amountUSDT must be greater than 0" };
+  }
+
+  const currentAmountUSDT = Number(goal.currentAmountUSDT || 0) + amountUSDT;
+  const targetAmountUSDT = Number(goal.targetAmountUSDT || 1);
+  const progressPercent = Math.min(100, (currentAmountUSDT / targetAmountUSDT) * 100);
+  const status = progressPercent >= 100 ? "completed" : (goal.status || "active");
+
+  const updatedGoal = {
+    ...goal,
+    currentAmountUSDT,
+    progressPercent,
+    status,
+    lastDepositTxHash: deposit.txHash || goal.lastDepositTxHash,
+    pendingDepositUSDT: 0,
+  };
+
+  const savedGoal = await safePersist("save vault deposit progress", () => persistence.saveGoal(session.userId, updatedGoal), updatedGoal);
+  session.goals = upsertGoal(session.goals, savedGoal);
+
+  await safePersist("record vault deposit transaction", () => persistence.recordTransaction(session.userId, {
+    goalId,
+    type: "vault_deposit",
+    token: "USDT",
+    amountUSDT,
+    txHash: deposit.txHash,
+    status: "confirmed",
+  }));
+
+  const message = `Saved ${amountUSDT.toFixed(2)} USDT for ${savedGoal.name}.`;
+  await safePersist("log vault deposit", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "vault_deposit",
+    amountUSDT,
+    message,
+    txHash: deposit.txHash,
+  }));
+
+  return {
+    success: true,
+    goal: savedGoal,
+    goals: session.goals,
+    message,
+  };
+}
+
+async function getActivityForSession(sessionId, limit = 25) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const activity = await safePersist(
+    "load activity",
+    () => persistence.listAgentLogs(session.userId, limit),
+    []
+  );
+
+  return {
+    activity,
+    persistence: persistence.getPersistenceStatus(),
+  };
+}
+
+async function getDashboardForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goals = await safePersist("load goals", () => persistence.listGoals(session.userId), session.goals || []);
+  const transactions = await safePersist("load transactions", () => persistence.listTransactions(session.userId, 100), []);
+  const activity = await safePersist("load activity", () => persistence.listAgentLogs(session.userId, 12), []);
+  session.goals = goals;
+
+  return {
+    stats: buildDashboardStats(goals, transactions),
+    goals,
+    activity,
+    persistence: persistence.getPersistenceStatus(),
+  };
+}
+
+async function setRoundUpPreference(sessionId, goalId, enabled) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) return { success: false, error: "Goal not found" };
+
+  const updatedGoal = { ...goal, roundUpEnabled: Boolean(enabled) };
+  const savedGoal = await safePersist("save round-up preference", () => persistence.saveGoal(session.userId, updatedGoal), updatedGoal);
+  session.goals = upsertGoal(session.goals, savedGoal);
+
+  const message = `${savedGoal.name} round-ups ${enabled ? "enabled" : "paused"}.`;
+  await safePersist("log round-up preference", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "round_up_preference",
+    message,
+  }));
+
+  return {
+    success: true,
+    goal: savedGoal,
+    goals: session.goals,
+    message,
+  };
+}
+
+async function logManualSpend(sessionId, data = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, data.goalId);
+  if (!goal) return { success: false, error: "Goal not found" };
+
+  const spendAmount = Number(data.amount);
+  if (!Number.isFinite(spendAmount) || spendAmount <= 0) {
+    return { success: false, error: "Spend amount must be greater than 0" };
+  }
+
+  const displayCurrency = normalizeDisplayCurrency(data.currency || goal.displayCurrency || "USD");
+  const spendUSDT = convertDisplayToUSDT(spendAmount, displayCurrency);
+  const roundedUSDT = Math.ceil(spendUSDT);
+  const roundUpUSDT = roundMoney(Math.max(0, roundedUSDT - spendUSDT));
+  const roundUpDisplay = roundMoney(convertUSDTToDisplay(roundUpUSDT, goal.displayCurrency || displayCurrency));
+
+  await safePersist("record manual spend", () => persistence.recordTransaction(session.userId, {
+    goalId: goal.id,
+    type: "manual_spend",
+    token: displayCurrency,
+    amountUSDT: spendUSDT,
+    status: "logged",
+  }));
+
+  const message = roundUpUSDT > 0
+    ? `Logged ${formatDisplayAmount(spendAmount, displayCurrency)} spend. Round-up available: ${roundUpUSDT.toFixed(2)} USDT for ${goal.name}.`
+    : `Logged ${formatDisplayAmount(spendAmount, displayCurrency)} spend. No round-up needed this time.`;
+
+  await safePersist("log manual spend", () => persistence.logAgentAction(session.userId, {
+    goalId: goal.id,
+    type: "manual_spend",
+    amountUSDT: spendUSDT,
+    message,
+  }));
+
+  return {
+    success: true,
+    goal,
+    roundUp: {
+      spendAmount,
+      displayCurrency,
+      spendUSDT: roundMoney(spendUSDT),
+      roundUpUSDT,
+      roundUpDisplay,
+      goalDisplayCurrency: goal.displayCurrency,
+    },
+    message,
+  };
+}
+
+async function getTipsForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  let tips = await safePersist("load tips", () => persistence.listTips(session.userId, 12), []);
+  if (tips.length < 3) {
+    const generated = buildTips(session.goals || [], await safePersist("load activity", () => persistence.listAgentLogs(session.userId, 25), []));
+    for (const tip of generated) {
+      await safePersist("save tip", () => persistence.saveTip(session.userId, tip), tip);
+    }
+    tips = await safePersist("reload tips", () => persistence.listTips(session.userId, 12), generated);
+  }
+
+  return { tips };
+}
+
+async function getRecommendationsForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const allRecommendations = await safePersist(
+    "load all recommendations",
+    () => persistence.listRecommendations(session.userId, null, 20),
+    []
+  );
+  let recommendations = allRecommendations.filter(recommendation => recommendation.status === "pending");
+
+  if (allRecommendations.length === 0) {
+    const generated = buildRecommendations(session.goals || []);
+    for (const recommendation of generated) {
+      await safePersist("save recommendation", () => persistence.saveRecommendation(session.userId, recommendation), recommendation);
+    }
+    recommendations = await safePersist(
+      "reload recommendations",
+      () => persistence.listRecommendations(session.userId, "pending", 10),
+      generated
+    );
+  }
+
+  return { recommendations };
+}
+
+async function updateRecommendation(sessionId, recommendationId, status) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const allowed = new Set(["accepted", "customised", "dismissed"]);
+  if (!allowed.has(status)) return { success: false, error: "Invalid recommendation status" };
+
+  const recommendation = await safePersist(
+    "update recommendation",
+    () => persistence.updateRecommendationStatus(session.userId, recommendationId, status),
+    null
+  );
+
+  await safePersist("log recommendation update", () => persistence.logAgentAction(session.userId, {
+    type: "recommendation_update",
+    message: recommendation
+      ? `${recommendation.suggestedGoalName} recommendation ${status}.`
+      : `Recommendation ${status}.`,
+  }));
+
+  if (recommendation && status === "accepted") {
+    const deadline = new Date();
+    deadline.setMonth(deadline.getMonth() + 6);
+    const goal = createSavingsGoalPlan({
+      amount: recommendation.suggestedAmountUSDT,
+      currency: "USD",
+      deadlineText: deadline.toISOString(),
+      purpose: recommendation.suggestedGoalName,
+      originalMessage: `Accepted recommendation: ${recommendation.suggestedGoalName}`,
+    }, session.goals || []);
+    goal.category = recommendation.suggestedCategory || goal.category;
+    goal.categoryLabel = titleCase(goal.category);
+
+    const savedGoal = await safePersist("save accepted recommendation goal", () => persistence.saveGoal(session.userId, goal), goal);
+    session.goals = upsertGoal(session.goals, savedGoal);
+
+    await safePersist("log accepted recommendation goal", () => persistence.logAgentAction(session.userId, {
+      goalId: savedGoal.id,
+      type: "goal_created",
+      amountUSDT: savedGoal.targetAmountUSDT,
+      message: `Started ${savedGoal.name} from a recommendation.`,
+    }));
+
+    return {
+      success: true,
+      recommendation,
+      goal: savedGoal,
+      goals: session.goals,
+    };
+  }
+
+  return { success: Boolean(recommendation), recommendation };
+}
+
+async function getWeeklyNudgeForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goals = session.goals || [];
+  const stats = buildDashboardStats(goals, await safePersist("load transactions", () => persistence.listTransactions(session.userId, 100), []));
+  const tip = buildTips(goals, [])[0];
+  const message = buildWeeklyNudgeMessage(goals, stats, tip);
+  const nudge = await safePersist("save weekly nudge", () => persistence.saveNudge(session.userId, {
+    channel: "in_app",
+    message,
+    status: "sent",
+    sentAt: new Date().toISOString(),
+  }), { message, status: "sent" });
+
+  await safePersist("save nudge tip", () => persistence.saveTip(session.userId, {
+    ...tip,
+    deliveredVia: "nudge",
+  }), tip);
+
+  return {
+    nudge,
+    message,
+    stats,
+    tip,
+  };
+}
+
+async function runWeeklyNudgesForActiveSessions() {
+  const results = [];
+  for (const sessionId of activeSessions.keys()) {
+    const result = await getWeeklyNudgeForSession(sessionId);
+    results.push({ sessionId, message: result.message });
+  }
+  return {
+    count: results.length,
+    results,
+  };
+}
+
 async function syncWalletForSession(sessionId, walletInfo = {}) {
   const session = activeSessions.get(sessionId) || createSession(sessionId, walletInfo);
   activeSessions.set(sessionId, session);
@@ -645,10 +1000,190 @@ function upsertGoal(goals = [], goal) {
   return next;
 }
 
+function findSessionGoal(session, goalId) {
+  return (session.goals || []).find(goal => goal.id === goalId);
+}
+
+function buildDashboardStats(goals = [], transactions = []) {
+  const activeGoals = goals.filter(goal => goal.status === "active");
+  const completedGoals = goals.filter(goal => goal.status === "completed");
+  const totalSavedUSDT = roundMoney(goals.reduce((sum, goal) => sum + Number(goal.currentAmountUSDT || 0), 0));
+  const totalTargetUSDT = roundMoney(goals.reduce((sum, goal) => sum + Number(goal.targetAmountUSDT || 0), 0));
+  const progressPercent = totalTargetUSDT > 0 ? roundMoney((totalSavedUSDT / totalTargetUSDT) * 100) : 0;
+  const streakWeeks = estimateStreakWeeks(transactions);
+
+  return {
+    activeGoalCount: activeGoals.length,
+    completedGoalCount: completedGoals.length,
+    totalSavedUSDT,
+    totalTargetUSDT,
+    progressPercent,
+    streakWeeks,
+    estimatedCompletionDate: estimateCompletionDate(activeGoals),
+  };
+}
+
+function estimateStreakWeeks(transactions = []) {
+  const depositDates = transactions
+    .filter(tx => ["vault_deposit", "round_up"].includes(tx.type) && Number(tx.amount_usdt || 0) > 0)
+    .map(tx => new Date(tx.created_at))
+    .filter(date => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b - a);
+
+  if (depositDates.length === 0) return 0;
+
+  const weekKeys = new Set(depositDates.map(date => {
+    const week = new Date(date);
+    week.setHours(0, 0, 0, 0);
+    week.setDate(week.getDate() - week.getDay());
+    return week.toISOString().slice(0, 10);
+  }));
+
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  cursor.setDate(cursor.getDate() - cursor.getDay());
+
+  while (weekKeys.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 7);
+  }
+
+  return streak;
+}
+
+function estimateCompletionDate(goals = []) {
+  if (goals.length === 0) return null;
+
+  const dates = goals.map(goal => {
+    const remaining = Math.max(0, Number(goal.targetAmountUSDT || 0) - Number(goal.currentAmountUSDT || 0));
+    const weekly = Math.max(0.01, Number(goal.weeklyTargetUSDT || 0));
+    const weeks = Math.ceil(remaining / weekly);
+    const date = new Date();
+    date.setDate(date.getDate() + weeks * 7);
+    return date;
+  });
+
+  return new Date(Math.max(...dates.map(date => date.getTime()))).toISOString();
+}
+
+function buildTips(goals = [], activity = []) {
+  const topGoal = goals[0];
+  const saved = roundMoney(goals.reduce((sum, goal) => sum + Number(goal.currentAmountUSDT || 0), 0));
+  const manualSpendCount = activity.filter(item => item.type === "manual_spend").length;
+  const hasEmergencyFund = goals.some(goal => goal.category === "emergency_fund");
+
+  return [
+    {
+      category: "consistency_coaching",
+      generatedText: topGoal
+        ? `Small weekly deposits beat big irregular ones. Your ${topGoal.name} plan needs about ${topGoal.weeklyTargetUSDT.toFixed(2)} USDT/week.`
+        : "Start with one small weekly savings goal. Consistency is the habit that compounds.",
+      deliveredVia: "tips_tab",
+    },
+    {
+      category: "round_up_maximisation",
+      generatedText: manualSpendCount > 0
+        ? `You logged ${manualSpendCount} manual spend${manualSpendCount === 1 ? "" : "s"}. Turning those into round-ups keeps saving low-friction.`
+        : "Manual spend logging turns everyday purchases into tiny top-ups toward your goal.",
+      deliveredVia: "tips_tab",
+    },
+    {
+      category: hasEmergencyFund ? "goal_pacing" : "emergency_fund_priority",
+      generatedText: hasEmergencyFund
+        ? `You already have emergency savings in view. Keep it separate from short-term goals so it stays protected.`
+        : `Before investing, build an emergency fund. Even 5 USDT/week gives you a real buffer over time.`,
+      deliveredVia: "tips_tab",
+    },
+    {
+      category: "stablecoin_education",
+      generatedText: saved > 0
+        ? `You have ${saved.toFixed(2)} USDT saved. Holding savings in USDT helps you track value without guessing tomorrow's exchange rate.`
+        : "USDT savings make long-term goals easier to compare because the target does not move around as much.",
+      deliveredVia: "tips_tab",
+    },
+  ];
+}
+
+function buildRecommendations(goals = []) {
+  const activeGoals = goals.filter(goal => goal.status === "active");
+  const completedGoals = goals.filter(goal => goal.status === "completed");
+  const hasEmergencyFund = goals.some(goal => goal.category === "emergency_fund");
+
+  if (!hasEmergencyFund) {
+    return [{
+      suggestedGoalName: "Emergency Fund",
+      suggestedCategory: "emergency_fund",
+      suggestedAmountUSDT: 100,
+      reasoningText: "You do not have an emergency fund yet. Start with a small buffer, then grow it over time.",
+      status: "pending",
+    }];
+  }
+
+  if (completedGoals.length > 0) {
+    return [{
+      suggestedGoalName: "Next Goal Buffer",
+      suggestedCategory: "custom",
+      suggestedAmountUSDT: 50,
+      reasoningText: "You completed a goal already. A small buffer keeps the habit going while you choose the next target.",
+      status: "pending",
+    }];
+  }
+
+  if (activeGoals.length === 1) {
+    return [{
+      suggestedGoalName: "Second Savings Goal",
+      suggestedCategory: "custom",
+      suggestedAmountUSDT: 75,
+      reasoningText: "You have one active goal. Adding a small second goal can help you save for near-term needs without touching your main target.",
+      status: "pending",
+    }];
+  }
+
+  return [];
+}
+
+function buildWeeklyNudgeMessage(goals = [], stats = {}, tip = {}) {
+  if (goals.length === 0) {
+    return `This week's check-in: you do not have an active goal yet. Start with one clear target and a small weekly amount.`;
+  }
+
+  const topGoal = goals[0];
+  const remaining = Math.max(0, Number(topGoal.targetAmountUSDT || 0) - Number(topGoal.currentAmountUSDT || 0));
+  const weekly = Number(topGoal.weeklyTargetUSDT || 0);
+  const progress = Number(topGoal.progressPercent || 0).toFixed(0);
+
+  return `Weekly check-in: ${topGoal.name} is ${progress}% funded. You have ${remaining.toFixed(2)} USDT left, about ${weekly.toFixed(2)} USDT/week on the current plan. Streak: ${stats.streakWeeks || 0} week${stats.streakWeeks === 1 ? "" : "s"}.\n\nTip: ${tip.generatedText || "Keep the deposit small enough to repeat."}`;
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function titleCase(value) {
+  return String(value || "Custom")
+    .replace(/_/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 module.exports = {
   handleUserMessage,
   handleTransactionComplete,
   getGoalsForSession,
+  markVaultGoalCreated,
+  recordVaultDeposit,
+  getActivityForSession,
+  getDashboardForSession,
+  setRoundUpPreference,
+  logManualSpend,
+  getTipsForSession,
+  getRecommendationsForSession,
+  updateRecommendation,
+  getWeeklyNudgeForSession,
+  runWeeklyNudgesForActiveSessions,
   syncWalletForSession,
   getPersistenceStatus,
   activeSessions,

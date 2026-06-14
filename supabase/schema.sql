@@ -41,6 +41,11 @@ create table if not exists public.goals (
   days_remaining integer not null default 0,
   exchange_rate jsonb,
   original_message text,
+  vault_goal_id text,
+  vault_goal_created boolean not null default false,
+  vault_goal_status text,
+  vault_create_tx_hash text,
+  last_deposit_tx_hash text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -290,6 +290,132 @@
       line-height: 1.35;
     }
 
+    .goal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .goal-action {
+      min-height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(238, 248, 241, 0.04);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.72rem;
+    }
+
+    .goal-action.primary {
+      background: rgba(53, 225, 154, 0.18);
+      border-color: rgba(53, 225, 154, 0.32);
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .goal-action:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .mini-input {
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      margin: 10px 0;
+    }
+
+    .activity-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .activity-item {
+      padding: 10px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(238, 248, 241, 0.04);
+      display: grid;
+      gap: 5px;
+    }
+
+    .activity-message {
+      font-size: 0.78rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .activity-time {
+      color: var(--muted);
+      font-size: 0.68rem;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat-card, .tip-card, .recommendation-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(238, 248, 241, 0.04);
+      padding: 10px 11px;
+    }
+
+    .stat-value {
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.68rem;
+      margin-top: 4px;
+    }
+
+    .stack-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .tip-card, .recommendation-card {
+      display: grid;
+      gap: 8px;
+      font-size: 0.76rem;
+      line-height: 1.45;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tiny-btn {
+      min-height: 30px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 0 9px;
+    }
+
+    .tiny-btn.primary {
+      border-color: rgba(53, 225, 154, 0.32);
+      color: var(--accent);
+      background: rgba(53, 225, 154, 0.12);
+    }
+
     .progress-track {
       width: 100%;
       height: 8px;
@@ -612,11 +738,20 @@
       </section>
 
       <section class="section">
+        <h2>Summary</h2>
+        <div class="summary-grid" id="summaryPanel">
+          <div class="stat-card"><div class="stat-value">0.00</div><div class="stat-label">USDT saved</div></div>
+          <div class="stat-card"><div class="stat-value">0</div><div class="stat-label">Week streak</div></div>
+        </div>
+      </section>
+
+      <section class="section">
         <h2>Quick Actions</h2>
         <div class="quick-grid">
           <button class="quick-action" onclick="sendQuick('Check my balance')">Check Celo balance</button>
           <button class="quick-action" onclick="fillPrompt('Save 150,000 naira for rent by December 1')">Create savings goal</button>
           <button class="quick-action" onclick="sendQuick('Show my goals')">Show my goals</button>
+          <button class="quick-action" onclick="requestWeeklyNudge()">Weekly summary</button>
           <button class="quick-action" onclick="fillPrompt('Send 10 USDT to 0x')">Prepare USDT top-up</button>
           <button class="quick-action" onclick="fillPrompt('Alert me if USDT price drops below $0.99')">Set Celo alert</button>
         </div>
@@ -630,6 +765,27 @@
         </div>
         <div class="goal-list" id="goalsPanel">
           <p class="note">No savings goals yet. Tell Osher what you want to save for.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Activity</h2>
+        <div class="activity-list" id="activityPanel">
+          <p class="note">Your agent activity will appear here.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Recommendations</h2>
+        <div class="stack-list" id="recommendationsPanel">
+          <p class="note">Personal suggestions will appear here.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Tips</h2>
+        <div class="stack-list" id="tipsPanel">
+          <p class="note">Personal savings tips will appear here.</p>
         </div>
       </section>
 
@@ -674,12 +830,18 @@
       USDm: '0x765DE816845861e75A25fCA122bb6898B8B1282a',
       CELO: '0x471EcE3750Da237f93B8E339c536989b8978a438'
     };
+    const SAVINGS_TOKEN_DECIMALS = 6;
 
     let walletInfo = {};
     let connectedWalletType = null;
     let pendingTxData = null;
     let networkConfig = CELO_MAINNET;
+    let contractConfig = { savingsVault: '', savingsToken: TOKEN_ADDRESSES.USDT, agent: '' };
     let goals = loadStoredGoals();
+    let activity = [];
+    let dashboardStats = {};
+    let tips = [];
+    let recommendations = [];
     let displayMode = localStorage.getItem('osher_display_mode') || 'local';
 
     init();
@@ -687,7 +849,12 @@
     async function init() {
       renderGoals();
       await loadNetwork();
+      await loadContractConfig();
       await loadPersistedGoals();
+      await loadDashboard();
+      await loadActivity();
+      await loadTips();
+      await loadRecommendations();
       setupProviderListeners();
       if (isMiniPay()) {
         await connectWallet('minipay');
@@ -723,6 +890,75 @@
         }
       } catch {
         // Local storage still keeps the dashboard useful offline.
+      }
+    }
+
+    async function loadContractConfig() {
+      try {
+        const res = await fetch('/api/contracts');
+        if (!res.ok) return;
+        const data = await res.json();
+        contractConfig = {
+          savingsVault: data.savingsVault || '',
+          savingsToken: data.savingsToken || TOKEN_ADDRESSES.USDT,
+          agent: data.agent || ''
+        };
+        renderGoals();
+      } catch {
+        contractConfig = { savingsVault: '', savingsToken: TOKEN_ADDRESSES.USDT, agent: '' };
+      }
+    }
+
+    async function loadActivity() {
+      try {
+        const res = await fetch(`/api/activity/${encodeURIComponent(SESSION_ID)}?limit=12`);
+        if (!res.ok) return;
+        const data = await res.json();
+        activity = Array.isArray(data.activity) ? data.activity : [];
+        renderActivity();
+      } catch {
+        renderActivity();
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const res = await fetch(`/api/dashboard/${encodeURIComponent(SESSION_ID)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        dashboardStats = data.stats || {};
+        if (Array.isArray(data.goals) && data.goals.length) syncGoalsFromResponse({ goals: data.goals });
+        if (Array.isArray(data.activity)) {
+          activity = data.activity;
+          renderActivity();
+        }
+        renderSummary();
+      } catch {
+        renderSummary();
+      }
+    }
+
+    async function loadTips() {
+      try {
+        const res = await fetch(`/api/tips/${encodeURIComponent(SESSION_ID)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        tips = Array.isArray(data.tips) ? data.tips : [];
+        renderTips();
+      } catch {
+        renderTips();
+      }
+    }
+
+    async function loadRecommendations() {
+      try {
+        const res = await fetch(`/api/recommendations/${encodeURIComponent(SESSION_ID)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+        renderRecommendations();
+      } catch {
+        renderRecommendations();
       }
     }
 
@@ -903,6 +1139,7 @@
 
         if (data.data?.goal || data.data?.goals) {
           syncGoalsFromResponse(data.data);
+          loadActivity();
         }
 
         if (data.state === 'awaiting_confirmation') {
@@ -935,6 +1172,7 @@
 
       localStorage.setItem('osher_goals', JSON.stringify(goals));
       renderGoals();
+      renderSummary();
     }
 
     function loadStoredGoals() {
@@ -966,6 +1204,23 @@
 
       panel.innerHTML = goals.map(goal => {
         const progress = Math.max(0, Math.min(100, Number(goal.progressPercent || 0)));
+        const vaultReady = Boolean(contractConfig.savingsVault);
+        const onChainPending = goal.vaultGoalStatus === 'pending';
+        const onChainReady = goal.vaultGoalCreated === true;
+        const createDisabled = !vaultReady || onChainPending || onChainReady;
+        const topUpDisabled = !vaultReady || !onChainReady;
+        const createLabel = !vaultReady
+          ? 'Vault not set'
+          : onChainReady
+            ? 'On-chain ready'
+            : onChainPending
+              ? 'Creating...'
+              : 'Create on-chain';
+        const vaultNote = !vaultReady
+          ? '<div class="note">Set OSHER_SAVINGS_VAULT to enable deposits.</div>'
+          : onChainReady
+            ? '<div class="note">Vault goal is ready for USDT top-ups.</div>'
+            : '<div class="note">Create this goal on-chain before topping up.</div>';
         const target = displayMode === 'usdt'
           ? `${formatNumber(goal.targetAmountUSDT, 2)} USDT`
           : formatLocalAmount(goal.targetAmountDisplay, goal.displayCurrency);
@@ -995,9 +1250,407 @@
               ${rate}
               <div>${progress.toFixed(0)}% saved</div>
             </div>
+            <div class="goal-actions">
+              <button class="goal-action" onclick="createVaultGoal('${escapeHtml(goal.id)}')" ${createDisabled ? 'disabled' : ''}>${escapeHtml(createLabel)}</button>
+              <button class="goal-action primary" onclick="showTopUpModal('${escapeHtml(goal.id)}')" ${topUpDisabled ? 'disabled' : ''}>Top up</button>
+              <button class="goal-action" onclick="toggleRoundUp('${escapeHtml(goal.id)}')">${goal.roundUpEnabled ? 'Round-up on' : 'Round-up off'}</button>
+              <button class="goal-action" onclick="showSpendModal('${escapeHtml(goal.id)}')">Log spend</button>
+            </div>
+            ${vaultNote}
           </article>
         `;
       }).join('');
+    }
+
+    function renderActivity() {
+      const panel = document.getElementById('activityPanel');
+      if (!panel) return;
+
+      if (!activity.length) {
+        panel.innerHTML = '<p class="note">Your agent activity will appear here.</p>';
+        return;
+      }
+
+      panel.innerHTML = activity.slice(0, 12).map(item => {
+        const createdAt = item.created_at || item.createdAt || new Date().toISOString();
+        const time = new Date(createdAt).toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const amount = item.amount_usdt ? `<div class="activity-time">${formatNumber(item.amount_usdt, 2)} USDT</div>` : '';
+        return `
+          <div class="activity-item">
+            <div class="activity-message">${escapeHtml(item.message || 'Activity recorded')}</div>
+            <div class="activity-time">${escapeHtml(time)}</div>
+            ${amount}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function prependActivity(item) {
+      activity = [item, ...activity].slice(0, 12);
+      renderActivity();
+    }
+
+    function renderSummary() {
+      const panel = document.getElementById('summaryPanel');
+      if (!panel) return;
+
+      const saved = Number(dashboardStats.totalSavedUSDT || goals.reduce((sum, goal) => sum + Number(goal.currentAmountUSDT || 0), 0));
+      const streak = Number(dashboardStats.streakWeeks || 0);
+      const progress = Number(dashboardStats.progressPercent || 0);
+      const active = Number(dashboardStats.activeGoalCount || goals.filter(goal => goal.status === 'active').length);
+
+      panel.innerHTML = `
+        <div class="stat-card"><div class="stat-value">${formatNumber(saved, 2)}</div><div class="stat-label">USDT saved</div></div>
+        <div class="stat-card"><div class="stat-value">${streak}</div><div class="stat-label">Week streak</div></div>
+        <div class="stat-card"><div class="stat-value">${formatNumber(progress, 0)}%</div><div class="stat-label">Total progress</div></div>
+        <div class="stat-card"><div class="stat-value">${active}</div><div class="stat-label">Active goals</div></div>
+      `;
+    }
+
+    function renderTips() {
+      const panel = document.getElementById('tipsPanel');
+      if (!panel) return;
+
+      if (!tips.length) {
+        panel.innerHTML = '<p class="note">Personal savings tips will appear here.</p>';
+        return;
+      }
+
+      panel.innerHTML = tips.slice(0, 4).map(tip => `
+        <div class="tip-card">
+          <div class="goal-category">${escapeHtml((tip.category || 'tip').replace(/_/g, ' '))}</div>
+          <div>${escapeHtml(tip.generatedText || tip.generated_text || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderRecommendations() {
+      const panel = document.getElementById('recommendationsPanel');
+      if (!panel) return;
+
+      if (!recommendations.length) {
+        panel.innerHTML = '<p class="note">No new recommendations right now.</p>';
+        return;
+      }
+
+      panel.innerHTML = recommendations.slice(0, 3).map(rec => `
+        <div class="recommendation-card">
+          <div>
+            <div class="goal-name">${escapeHtml(rec.suggestedGoalName || 'Savings idea')}</div>
+            <div class="note">${escapeHtml(rec.reasoningText || '')}</div>
+          </div>
+          <div class="activity-time">${formatNumber(rec.suggestedAmountUSDT || 0, 2)} USDT target</div>
+          <div class="card-actions">
+            <button class="tiny-btn primary" onclick="handleRecommendation('${escapeHtml(rec.id)}','accepted')">Accept</button>
+            <button class="tiny-btn" onclick="handleRecommendation('${escapeHtml(rec.id)}','customised')">Customise</button>
+            <button class="tiny-btn" onclick="handleRecommendation('${escapeHtml(rec.id)}','dismissed')">Dismiss</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function createVaultGoal(goalId) {
+      const goal = findGoal(goalId);
+      if (!goal) return;
+
+      try {
+        await ensureVaultActionReady();
+        const vaultGoalId = bytes32FromString(goal.id);
+        const targetUnits = parseUnits(goal.targetAmountUSDT, SAVINGS_TOKEN_DECIMALS);
+        const deadlineSeconds = BigInt(Math.floor(new Date(goal.deadline).getTime() / 1000));
+
+        showToast('Create this goal in your wallet...');
+        const txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: walletInfo.address,
+            to: contractConfig.savingsVault,
+            value: '0x0',
+            data: encodeVaultCreateGoal(vaultGoalId, targetUnits, deadlineSeconds)
+          }]
+        });
+
+        updateGoal(goal.id, {
+          vaultGoalId,
+          vaultGoalStatus: 'pending',
+          vaultCreateTxHash: txHash
+        });
+        appendMessage('agent', `Vault goal creation submitted for ${goal.name}. Wait for confirmation before topping up.`);
+        showTransactionTracker(txHash, 'celo', async () => {
+          const persisted = await persistVaultGoalCreated(goal.id, vaultGoalId, txHash);
+          if (persisted?.goal) syncGoalsFromResponse({ goal: persisted.goal, goals: persisted.goals });
+          else updateGoal(goal.id, {
+            vaultGoalCreated: true,
+            vaultGoalStatus: 'created'
+          });
+          await loadActivity();
+          appendMessage('agent', `${goal.name} is ready on-chain. You can top it up now.`);
+        });
+      } catch (error) {
+        console.error('[Vault] createGoal failed:', error);
+        appendMessage('agent', cleanWalletError(error));
+        showToast('Vault goal was not created.');
+      }
+    }
+
+    function showTopUpModal(goalId, presetAmount) {
+      const goal = findGoal(goalId);
+      if (!goal) return;
+
+      const suggested = presetAmount || goal.weeklyTargetUSDT || Math.max(1, Number(goal.targetAmountUSDT || 0) / 10);
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h2>Top up ${escapeHtml(goal.name || 'goal')}</h2>
+          <p class="note">Amount is in USDT. Your wallet will ask for approval, then the vault deposit.</p>
+          <input class="mini-input" id="topUpAmountInput" inputmode="decimal" value="${escapeHtml(Number(suggested).toFixed(2))}" />
+          <button class="btn primary" style="width:100%;margin-bottom:10px" onclick="executeVaultTopUp('${escapeHtml(goal.id)}')">Continue</button>
+          <button class="btn" style="width:100%" onclick="closeWalletModal()">Cancel</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.getElementById('topUpAmountInput')?.focus();
+    }
+
+    async function toggleRoundUp(goalId) {
+      const goal = findGoal(goalId);
+      if (!goal) return;
+
+      try {
+        const res = await fetch(`/api/roundups/${encodeURIComponent(SESSION_ID)}/${encodeURIComponent(goalId)}/preference`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: !goal.roundUpEnabled })
+        });
+        const data = await res.json();
+        if (data.goal) syncGoalsFromResponse({ goal: data.goal, goals: data.goals });
+        if (data.message) appendMessage('agent', data.message);
+        await loadActivity();
+      } catch {
+        showToast('Could not update round-up preference.');
+      }
+    }
+
+    function showSpendModal(goalId) {
+      const goal = findGoal(goalId);
+      if (!goal) return;
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h2>Log spend</h2>
+          <p class="note">Osher will calculate the round-up to the next USDT.</p>
+          <input class="mini-input" id="spendAmountInput" inputmode="decimal" placeholder="Amount spent" />
+          <input class="mini-input" id="spendCurrencyInput" value="${escapeHtml(goal.displayCurrency || 'NGN')}" />
+          <button class="btn primary" style="width:100%;margin-bottom:10px" onclick="executeManualSpend('${escapeHtml(goal.id)}')">Calculate round-up</button>
+          <button class="btn" style="width:100%" onclick="closeWalletModal()">Cancel</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.getElementById('spendAmountInput')?.focus();
+    }
+
+    async function executeManualSpend(goalId) {
+      const amount = Number(document.getElementById('spendAmountInput')?.value || 0);
+      const currency = document.getElementById('spendCurrencyInput')?.value || 'NGN';
+      closeWalletModal();
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        showToast('Enter a valid spend amount.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/roundups/${encodeURIComponent(SESSION_ID)}/${encodeURIComponent(goalId)}/spend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, currency })
+        });
+        const data = await res.json();
+        appendMessage('agent', data.message || 'Spend logged.');
+        await loadActivity();
+
+        const roundUpUSDT = Number(data.roundUp?.roundUpUSDT || 0);
+        const goal = findGoal(goalId);
+        if (roundUpUSDT > 0 && goal?.roundUpEnabled && goal?.vaultGoalCreated && contractConfig.savingsVault) {
+          showTopUpModal(goalId, roundUpUSDT);
+        }
+      } catch {
+        showToast('Could not log spend.');
+      }
+    }
+
+    async function handleRecommendation(recommendationId, status) {
+      try {
+        const res = await fetch(`/api/recommendations/${encodeURIComponent(SESSION_ID)}/${encodeURIComponent(recommendationId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        const data = await res.json();
+        recommendations = recommendations.filter(rec => rec.id !== recommendationId);
+        renderRecommendations();
+        if (data.goal || data.goals) {
+          syncGoalsFromResponse({ goal: data.goal, goals: data.goals });
+        }
+        await loadActivity();
+        if (data.recommendation) {
+          appendMessage('agent', `${data.recommendation.suggestedGoalName} recommendation ${status}.`);
+        }
+      } catch {
+        showToast('Could not update recommendation.');
+      }
+    }
+
+    async function requestWeeklyNudge() {
+      try {
+        const res = await fetch(`/api/nudges/${encodeURIComponent(SESSION_ID)}/weekly`, { method: 'POST' });
+        const data = await res.json();
+        appendMessage('agent', data.message || 'Weekly summary generated.');
+        await loadTips();
+        await loadActivity();
+      } catch {
+        showToast('Could not generate weekly summary.');
+      }
+    }
+
+    async function executeVaultTopUp(goalId) {
+      const goal = findGoal(goalId);
+      const input = document.getElementById('topUpAmountInput');
+      const amount = Number(input?.value || 0);
+      closeWalletModal();
+
+      if (!goal || !Number.isFinite(amount) || amount <= 0) {
+        showToast('Enter a valid USDT amount.');
+        return;
+      }
+
+      try {
+        await ensureVaultActionReady();
+        if (!goal.vaultGoalCreated) {
+          appendMessage('agent', 'Create this goal on-chain first, then top it up after confirmation.');
+          return;
+        }
+
+        const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
+        const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
+
+        showToast('Approve USDT for the vault...');
+        const approveHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: walletInfo.address,
+            to: contractConfig.savingsToken,
+            value: '0x0',
+            data: encodeErc20Approve(contractConfig.savingsVault, amountUnits)
+          }]
+        });
+        showTransactionTracker(approveHash, 'celo');
+
+        showToast('Deposit approved USDT into your goal...');
+        const depositHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: walletInfo.address,
+            to: contractConfig.savingsVault,
+            value: '0x0',
+            data: encodeVaultDeposit(vaultGoalId, amountUnits)
+          }]
+        });
+
+        updateGoal(goal.id, {
+          lastDepositTxHash: depositHash,
+          pendingDepositUSDT: amount
+        });
+        appendMessage('agent', `Top-up submitted: ${amount.toFixed(2)} USDT for ${goal.name}.`);
+        showTransactionTracker(depositHash, 'celo', async () => {
+          const persisted = await persistVaultDeposit(goal.id, amount, depositHash);
+          if (persisted?.goal) {
+            syncGoalsFromResponse({ goal: persisted.goal, goals: persisted.goals });
+            if (persisted.message) {
+              prependActivity({
+                message: persisted.message,
+                amount_usdt: amount,
+                created_at: new Date().toISOString()
+              });
+            }
+            appendMessage('agent', `${amount.toFixed(2)} USDT confirmed for ${goal.name}.`);
+            return;
+          }
+          const currentAmountUSDT = Number(goal.currentAmountUSDT || 0) + amount;
+          updateGoal(goal.id, {
+            currentAmountUSDT,
+            pendingDepositUSDT: 0,
+            progressPercent: Math.min(100, (currentAmountUSDT / Number(goal.targetAmountUSDT || 1)) * 100)
+          });
+          await loadActivity();
+          appendMessage('agent', `${amount.toFixed(2)} USDT confirmed for ${goal.name}.`);
+        });
+      } catch (error) {
+        console.error('[Vault] top-up failed:', error);
+        appendMessage('agent', cleanWalletError(error));
+        showToast('Top-up was not completed.');
+      }
+    }
+
+    async function ensureVaultActionReady() {
+      if (!connectedWalletType || !walletInfo.address) {
+        await connectWallet();
+      }
+      if (!walletInfo.address) throw new Error('Connect MiniPay or MetaMask first.');
+      if (!contractConfig.savingsVault) {
+        throw new Error('Savings vault is not configured yet. Set OSHER_SAVINGS_VAULT after deploying OsherSavingsVault.');
+      }
+      await ensureCeloNetwork();
+    }
+
+    async function persistVaultGoalCreated(goalId, vaultGoalId, txHash) {
+      try {
+        const res = await fetch(`/api/goals/${encodeURIComponent(SESSION_ID)}/${encodeURIComponent(goalId)}/vault-created`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vaultGoalId, txHash })
+        });
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    async function persistVaultDeposit(goalId, amountUSDT, txHash) {
+      try {
+        const res = await fetch(`/api/goals/${encodeURIComponent(SESSION_ID)}/${encodeURIComponent(goalId)}/deposit-confirmed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amountUSDT, txHash })
+        });
+        return await res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    function findGoal(goalId) {
+      return goals.find(goal => goal.id === goalId);
+    }
+
+    function updateGoal(goalId, patch) {
+      const index = goals.findIndex(goal => goal.id === goalId);
+      if (index === -1) return;
+      goals[index] = { ...goals[index], ...patch };
+      saveGoals();
+      renderGoals();
+    }
+
+    function saveGoals() {
+      localStorage.setItem('osher_goals', JSON.stringify(goals));
     }
 
     async function signEvmTransfer(transferData) {
@@ -1055,6 +1708,35 @@
       return '0x' + selector + addressPart + amountPart;
     }
 
+    function encodeErc20Approve(spender, amountUnits) {
+      const selector = '095ea7b3';
+      const addressPart = spender.toLowerCase().replace(/^0x/, '').padStart(64, '0');
+      const amountPart = amountUnits.toString(16).padStart(64, '0');
+      return '0x' + selector + addressPart + amountPart;
+    }
+
+    function encodeVaultCreateGoal(vaultGoalId, targetUnits, deadlineSeconds) {
+      const selector = 'b5ae5b38';
+      return '0x' + selector +
+        vaultGoalId.replace(/^0x/, '').padStart(64, '0') +
+        targetUnits.toString(16).padStart(64, '0') +
+        deadlineSeconds.toString(16).padStart(64, '0');
+    }
+
+    function encodeVaultDeposit(vaultGoalId, amountUnits) {
+      const selector = 'd04b3936';
+      return '0x' + selector +
+        vaultGoalId.replace(/^0x/, '').padStart(64, '0') +
+        amountUnits.toString(16).padStart(64, '0');
+    }
+
+    function bytes32FromString(value) {
+      const bytes = new TextEncoder().encode(String(value));
+      const out = new Uint8Array(32);
+      out.set(bytes.slice(0, 32));
+      return '0x' + Array.from(out).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
     function parseUnits(value, decimals) {
       const [whole, fraction = ''] = String(value).trim().split('.');
       const normalizedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
@@ -1063,17 +1745,17 @@
       return wholeUnits + fractionUnits;
     }
 
-    function showTransactionTracker(txHash, chain) {
+    function showTransactionTracker(txHash, chain, onConfirmed) {
       const explorerUrl = chain === 'celo' ? `https://celoscan.io/tx/${txHash}` : `https://blockscan.com/tx/${txHash}`;
       const el = appendMessage('agent', `Transaction submitted:\n${txHash}`);
       const tracker = document.createElement('div');
       tracker.className = 'tx-tracker';
       tracker.innerHTML = `<a href="${explorerUrl}" target="_blank" rel="noreferrer">View on explorer</a><span>Checking Celo confirmation status...</span>`;
       el.querySelector('.bubble').appendChild(tracker);
-      pollTransactionStatus(txHash, chain, tracker);
+      pollTransactionStatus(txHash, chain, tracker, onConfirmed);
     }
 
-    async function pollTransactionStatus(txHash, chain, tracker) {
+    async function pollTransactionStatus(txHash, chain, tracker, onConfirmed) {
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
@@ -1083,6 +1765,7 @@
           const status = tracker.querySelector('span');
           if (data.status === 'confirmed') {
             status.textContent = `Confirmed with ${data.confirmations} confirmations.`;
+            if (typeof onConfirmed === 'function') await onConfirmed(data);
             clearInterval(poll);
           } else if (data.status === 'confirming') {
             status.textContent = `Confirming: ${data.confirmations} confirmation${data.confirmations === 1 ? '' : 's'}.`;
