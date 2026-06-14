@@ -7,6 +7,8 @@ const express    = require("express");
 const cors       = require("cors");
 const path       = require("path");
 const http       = require("http");
+const fs         = require("fs");
+const { spawnSync } = require("child_process");
 const { Server } = require("socket.io");
 
 const config                  = require("./config/keys");
@@ -43,11 +45,35 @@ const io     = new Server(server, {
 
 app.use(cors({ origin: config.SERVER.CORS_ORIGIN }));
 app.use(express.json());
-const fs = require("fs");
 const frontendDir = path.join(__dirname, "frontend");
 const frontendDistDir = path.join(frontendDir, "dist");
 const frontendDistIndex = path.join(frontendDistDir, "index.html");
-const hasBuiltFrontend = fs.existsSync(frontendDistIndex);
+const frontendDistAsset = path.join(frontendDistDir, "assets", "index.js");
+
+function ensureFrontendDist() {
+  if (fs.existsSync(frontendDistIndex) && fs.existsSync(frontendDistAsset)) {
+    return true;
+  }
+
+  console.warn("[frontend] Missing built frontend bundle. Building frontend now...");
+  const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build:frontend"], {
+    cwd: __dirname,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      npm_config_script_shell: process.env.npm_config_script_shell || "/bin/sh",
+    },
+  });
+
+  if (result.status !== 0) {
+    console.error("[frontend] Frontend build failed during server startup.");
+    return false;
+  }
+
+  return fs.existsSync(frontendDistIndex) && fs.existsSync(frontendDistAsset);
+}
+
+const hasBuiltFrontend = ensureFrontendDist();
 
 if (hasBuiltFrontend) {
   app.use(express.static(frontendDistDir));
