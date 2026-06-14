@@ -1,0 +1,193 @@
+import { useState } from "react";
+import { ArrowRight, Mail, Phone, ChevronLeft } from "lucide-react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+import osherLogo from "../../imports/Osher_wallet_logo.png";
+
+interface Props {
+  onAuth: () => void;
+}
+
+export function AuthScreen({ onAuth }: Props) {
+  const [mode, setMode] = useState<"login" | "signup">("signup");
+  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [value, setValue] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+
+  const handleOtpChange = (idx: number, val: string) => {
+    if (val.length > 1) return;
+    const next = [...otp];
+    next[idx] = val;
+    setOtp(next);
+    if (val && idx < 5) {
+      const el = document.getElementById(`otp-${idx + 1}`);
+      el?.focus();
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-background">
+      {/* Top bar */}
+      <div className="px-5 pt-12 pb-4">
+        <div className="flex items-center gap-3 mb-6">
+          {otpSent && (
+            <button onClick={() => setOtpSent(false)} className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#f0f0f9" }}>
+              <ChevronLeft size={18} color="#0d0d14" />
+            </button>
+          )}
+          {/* Logo */}
+          <div style={{ width: 38, height: 38, borderRadius: 12, overflow: "hidden", background: "#f5f5fb", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.1)", flexShrink: 0 }}>
+            <ImageWithFallback src={osherLogo} alt="Osher AI" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </div>
+          <span className="font-display" style={{ fontSize: "0.9rem", fontWeight: 700, color: "#0d0d14", letterSpacing: "-0.01em" }}>Osher AI</span>
+        </div>
+        <h1 className="font-display" style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0d0d14", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+          {otpSent ? "Check your " + (method === "email" ? "email" : "phone") : mode === "signup" ? "Create account" : "Welcome back"}
+        </h1>
+        <p style={{ color: "#6b6b8a", marginTop: 5, fontSize: "0.875rem", lineHeight: 1.5 }}>
+          {otpSent
+            ? `Enter the 6-digit code sent to ${value || (method === "email" ? "your email" : "your phone")}.`
+            : mode === "signup"
+            ? "Join thousands saving smarter with Osher AI."
+            : "Sign in to continue your savings journey."}
+        </p>
+      </div>
+
+      <div className="flex-1 px-5 py-2 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+        {!otpSent ? (
+          <>
+            {/* Mode toggle */}
+            <div className="rounded-2xl p-1 mb-7" style={{ background: "#f0f0f9" }}>
+              <div className="flex">
+                {(["signup", "login"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    className="flex-1 py-3 rounded-xl transition-all"
+                    style={{
+                      background: mode === m ? "#fff" : "transparent",
+                      color: mode === m ? "#0d0d14" : "#9a9ab8",
+                      fontWeight: 700,
+                      fontSize: "0.9rem",
+                      boxShadow: mode === m ? "0 1px 6px rgba(0,0,0,0.08)" : "none",
+                    }}
+                  >
+                    {m === "signup" ? "Sign Up" : "Log In"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Method pills */}
+            <p style={{ fontSize: "0.7rem", fontWeight: 700, color: "#9a9ab8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>Sign in with</p>
+            <div className="flex gap-3 mb-6">
+              {(["email", "phone"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl border transition-all flex-1 justify-center"
+                  style={{
+                    borderColor: method === m ? "#171717" : "rgba(0,0,0,0.08)",
+                    background: method === m ? "#171717" : "#fff",
+                    color: method === m ? "#fff" : "#6b6b8a",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                    boxShadow: method === m ? "0 4px 16px rgba(23,23,23,0.2)" : "none",
+                  }}
+                >
+                  {m === "email" ? <Mail size={16} /> : <Phone size={16} />}
+                  {m === "email" ? "Email" : "Phone"}
+                </button>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="mb-6">
+              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a9ab8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
+                {method === "email" ? "Email address" : "Phone number"}
+              </label>
+              <div className="rounded-2xl border px-4 py-4" style={{ borderColor: "rgba(0,0,0,0.1)", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                <input
+                  className="w-full outline-none bg-transparent"
+                  type={method === "email" ? "email" : "tel"}
+                  placeholder={method === "email" ? "you@example.com" : "+234 800 000 0000"}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  style={{ fontSize: "1rem", color: "#0d0d14", fontFamily: "inherit" }}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => value.trim() && setOtpSent(true)}
+              className="w-full py-4 rounded-2xl flex items-center justify-center gap-2.5"
+              style={{
+                background: "#171717", color: "#fff", fontWeight: 700, fontSize: "1rem",
+                fontFamily: "'Bricolage Grotesque', sans-serif",
+                opacity: value.trim() ? 1 : 0.45,
+                boxShadow: value.trim() ? "0 6px 24px rgba(23,23,23,0.25)" : "none",
+              }}
+            >
+              Send verification code <ArrowRight size={18} />
+            </button>
+          </>
+        ) : (
+          <>
+            {/* OTP boxes */}
+            <div className="mb-8">
+              <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a9ab8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 14 }}>
+                Verification code
+              </label>
+              <div className="flex gap-2.5 justify-between">
+                {otp.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    id={`otp-${idx}`}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(idx, e.target.value)}
+                    className="rounded-2xl text-center outline-none"
+                    style={{
+                      width: "14%",
+                      aspectRatio: "1",
+                      fontSize: "1.4rem",
+                      fontWeight: 800,
+                      color: "#0d0d14",
+                      background: digit ? "#CCCCF7" : "#fff",
+                      border: `1.5px solid ${digit ? "#9898e8" : "rgba(0,0,0,0.1)"}`,
+                      transition: "all 0.15s",
+                      fontFamily: "'DM Mono', monospace",
+                    }}
+                  />
+                ))}
+              </div>
+              <p style={{ fontSize: "0.8rem", color: "#9a9ab8", marginTop: 12, textAlign: "center" }}>
+                Didn't receive it? <span style={{ color: "#171717", fontWeight: 600 }}>Resend code</span>
+              </p>
+            </div>
+
+            <button
+              onClick={onAuth}
+              className="w-full py-4 rounded-2xl flex items-center justify-center gap-2.5"
+              style={{
+                background: "#171717", color: "#fff", fontWeight: 700, fontSize: "1rem",
+                fontFamily: "'Bricolage Grotesque', sans-serif",
+                boxShadow: "0 6px 24px rgba(23,23,23,0.25)",
+              }}
+            >
+              Verify & Continue <ArrowRight size={18} />
+            </button>
+          </>
+        )}
+      </div>
+
+      <p style={{ textAlign: "center", padding: "16px", fontSize: "0.78rem", color: "#b0b0c8", lineHeight: 1.5 }}>
+        By continuing, you agree to our{" "}
+        <span style={{ color: "#171717", fontWeight: 600 }}>Terms of Service</span> and{" "}
+        <span style={{ color: "#171717", fontWeight: 600 }}>Privacy Policy</span>
+      </p>
+    </div>
+  );
+}

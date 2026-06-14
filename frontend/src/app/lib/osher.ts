@@ -1,0 +1,266 @@
+export type WalletType = 'minipay' | 'metamask';
+
+export type WalletInfo = {
+  address?: string;
+  walletType?: WalletType;
+  chainId?: number;
+  loginTxHash?: string;
+};
+
+export type SavingsGoal = {
+  id: string;
+  name?: string;
+  category?: string;
+  categoryLabel?: string;
+  targetAmountUSDT?: number;
+  targetAmountDisplay?: number;
+  displayCurrency?: string;
+  currentAmountUSDT?: number;
+  weeklyTargetUSDT?: number;
+  weeklyTargetDisplay?: number;
+  deadline?: string;
+  daysRemaining?: number;
+  progressPercent?: number;
+  roundUpEnabled?: boolean;
+  status?: string;
+  vaultGoalId?: string;
+  vaultGoalCreated?: boolean;
+  vaultGoalStatus?: string;
+  vaultCreateTxHash?: string;
+  lastDepositTxHash?: string;
+};
+
+export type DashboardStats = {
+  totalSavedUSDT?: number;
+  totalTargetUSDT?: number;
+  progressPercent?: number;
+  activeGoalCount?: number;
+  completedGoalCount?: number;
+  streakWeeks?: number;
+  monthlySavedUSDT?: number;
+};
+
+export type ActivityItem = {
+  id?: string;
+  message?: string;
+  type?: string;
+  amount_usdt?: number;
+  amountUSDT?: number;
+  created_at?: string;
+  createdAt?: string;
+};
+
+export type Tip = { id?: string; category?: string; generatedText?: string; generated_text?: string; created_at?: string; };
+
+export type Recommendation = {
+  id: string;
+  suggestedGoalName?: string;
+  suggestedCategory?: string;
+  suggestedAmountUSDT?: number;
+  reasoningText?: string;
+  status?: string;
+};
+
+export type ContractsConfig = { network?: string; savingsVault?: string; savingsToken?: string; agent?: string; };
+
+export type NetworkConfig = { chainId: string; chainName: string; nativeCurrency: { name: string; symbol: string; decimals: number }; rpcUrls: string[]; blockExplorerUrls: string[]; };
+
+export type AppData = {
+  goals: SavingsGoal[];
+  dashboard: DashboardStats;
+  activity: ActivityItem[];
+  tips: Tip[];
+  recommendations: Recommendation[];
+  walletInfo: WalletInfo;
+  displayMode: 'local' | 'usdt';
+  contracts: ContractsConfig;
+};
+
+export function getOrCreateSessionId() {
+  const key = 'osher_session_id';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+export const SESSION_ID = getOrCreateSessionId();
+
+export function isMiniPay() {
+  return typeof window !== 'undefined' && (window as any).ethereum?.isMiniPay === true;
+}
+
+export function isMetaMask() {
+  return typeof window !== 'undefined' && (window as any).ethereum?.isMetaMask === true && !(window as any).ethereum?.isMiniPay;
+}
+
+export async function apiJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data as T;
+}
+
+export async function loadNetworkConfig(): Promise<NetworkConfig> {
+  const data = await apiJson<{ network: string; chainId: number }>('/api/network');
+  const mainnet = Number(data.chainId) === 42220;
+  return {
+    chainId: '0x' + Number(data.chainId || 42220).toString(16),
+    chainName: mainnet ? 'Celo' : 'Celo Alfajores',
+    nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+    rpcUrls: [mainnet ? 'https://forno.celo.org' : 'https://alfajores-forno.celo-testnet.org'],
+    blockExplorerUrls: [mainnet ? 'https://celoscan.io' : 'https://alfajores.celoscan.io'],
+  };
+}
+
+export async function loadAppData(walletInfo: WalletInfo, displayMode: 'local' | 'usdt'): Promise<AppData> {
+  const [goalsResponse, dashboard, activityResponse, tipsResponse, recommendationsResponse, contracts] = await Promise.all([
+    apiJson<any>(`/api/goals/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
+    apiJson<DashboardStats>(`/api/dashboard/${encodeURIComponent(SESSION_ID)}`).catch(() => ({})),
+    apiJson<any>(`/api/activity/${encodeURIComponent(SESSION_ID)}?limit=20`).catch(() => []),
+    apiJson<any>(`/api/tips/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
+    apiJson<any>(`/api/recommendations/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
+    apiJson<ContractsConfig>('/api/contracts').catch(() => ({})),
+  ]);
+  const goals = Array.isArray(goalsResponse) ? goalsResponse : (goalsResponse.goals || []);
+  const activity = Array.isArray(activityResponse) ? activityResponse : (activityResponse.activity || activityResponse.logs || []);
+  const tips = Array.isArray(tipsResponse) ? tipsResponse : (tipsResponse.tips || []);
+  const recommendations = Array.isArray(recommendationsResponse) ? recommendationsResponse : (recommendationsResponse.recommendations || []);
+  return { goals, dashboard, activity, tips, recommendations, walletInfo, displayMode, contracts };
+}
+
+export async function ensureCeloNetwork(networkConfig: NetworkConfig) {
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) throw new Error('No wallet provider detected.');
+  const currentChain = await ethereum.request({ method: 'eth_chainId' });
+  if (String(currentChain).toLowerCase() === networkConfig.chainId.toLowerCase()) return;
+  try {
+    await ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: networkConfig.chainId }] });
+  } catch (switchErr: any) {
+    if (switchErr?.code === 4902) {
+      await ethereum.request({ method: 'wallet_addEthereumChain', params: [networkConfig] });
+      return;
+    }
+    throw switchErr;
+  }
+}
+
+export async function connectWallet(walletType: WalletType | 'auto', networkConfig: NetworkConfig): Promise<WalletInfo> {
+  const ethereum = (window as any).ethereum;
+  const resolved: WalletType = walletType === 'auto' ? (isMiniPay() ? 'minipay' : 'metamask') : walletType;
+  if (!ethereum) throw new Error(resolved === 'minipay' ? 'Open this app in MiniPay or Opera Mini.' : 'MetaMask was not detected.');
+  if (resolved === 'minipay' && !isMiniPay()) throw new Error('MiniPay was not detected in this browser.');
+  if (resolved === 'metamask' && !isMetaMask()) throw new Error('MetaMask was not detected. MiniPay users can connect with the MiniPay option.');
+  const accounts = await ethereum.request({ method: 'eth_requestAccounts', params: [] });
+  const address = accounts?.[0];
+  if (!address) throw new Error('No account returned by wallet.');
+  await ensureCeloNetwork(networkConfig);
+  const loginTxHash = await ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [{ from: address, to: address, value: '0x0', data: '0x' }],
+  });
+  const chainId = await ethereum.request({ method: 'eth_chainId' });
+  const walletInfo: WalletInfo = { address, walletType: resolved, chainId: parseInt(chainId, 16), loginTxHash };
+  await apiJson('/api/wallet/connect', { method: 'POST', body: JSON.stringify({ sessionId: SESSION_ID, walletInfo }) }).catch(() => null);
+  localStorage.setItem('osher_wallet_info', JSON.stringify(walletInfo));
+  return walletInfo;
+}
+
+export function loadStoredWallet(): WalletInfo {
+  try { return JSON.parse(localStorage.getItem('osher_wallet_info') || '{}'); } catch { return {}; }
+}
+
+export function clearStoredWallet() {
+  localStorage.removeItem('osher_wallet_info');
+}
+
+export function shortAddress(address?: string) {
+  return address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
+}
+
+export function formatNumber(value: unknown, digits = 2) {
+  return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+export function formatLocalAmount(amount: unknown, currency = 'USD') {
+  const code = String(currency || 'USD').toUpperCase();
+  if (code === 'USD') return '$' + formatNumber(amount, 2);
+  if (code === 'NGN') return '₦' + formatNumber(amount, 0);
+  if (code === 'GHS') return 'GHS ' + formatNumber(amount, 2);
+  return formatNumber(amount, 2) + ' ' + code;
+}
+
+export function formatGoalAmount(goal: SavingsGoal, mode: 'local' | 'usdt', field: 'target' | 'saved' | 'weekly' = 'target') {
+  if (mode === 'usdt') {
+    const value = field === 'target' ? goal.targetAmountUSDT : field === 'weekly' ? goal.weeklyTargetUSDT : goal.currentAmountUSDT;
+    return formatNumber(value, 2) + ' USDT';
+  }
+  if (field === 'weekly') return formatLocalAmount(goal.weeklyTargetDisplay, goal.displayCurrency);
+  if (field === 'saved') {
+    const targetDisplay = Number(goal.targetAmountDisplay || 0);
+    const pct = Math.max(0, Number(goal.progressPercent || 0)) / 100;
+    return formatLocalAmount(targetDisplay * pct, goal.displayCurrency);
+  }
+  return formatLocalAmount(goal.targetAmountDisplay, goal.displayCurrency);
+}
+
+export function categoryEmoji(category?: string) {
+  const key = String(category || '').toLowerCase();
+  if (key.includes('rent')) return '🏠';
+  if (key.includes('school')) return '🎓';
+  if (key.includes('emergency')) return '🛡️';
+  if (key.includes('travel')) return '✈️';
+  if (key.includes('gadget')) return '📱';
+  return '🎯';
+}
+
+export function cleanWalletError(err: any) {
+  const message = err?.message || String(err);
+  if (err?.code === 4001 || message.toLowerCase().includes('rejected')) return 'Wallet request cancelled.';
+  if (message.toLowerCase().includes('insufficient')) return 'Your wallet does not have enough funds for this transaction and network fee.';
+  return message;
+}
+
+export function parseUnits(value: number | string, decimals: number) {
+  const [whole, fraction = ''] = String(value).trim().split('.');
+  const normalizedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  return BigInt(whole || '0') * (10n ** BigInt(decimals)) + BigInt(normalizedFraction || '0');
+}
+
+export function bytes32FromString(value: string) {
+  const bytes = new TextEncoder().encode(String(value));
+  const out = new Uint8Array(32);
+  out.set(bytes.slice(0, 32));
+  return '0x' + Array.from(out).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function encodeAddress(address: string) { return address.toLowerCase().replace(/^0x/, '').padStart(64, '0'); }
+function encodeUint(value: bigint) { return value.toString(16).padStart(64, '0'); }
+
+export function encodeErc20Approve(spender: string, amountUnits: bigint) {
+  return '0x095ea7b3' + encodeAddress(spender) + encodeUint(amountUnits);
+}
+
+export function encodeVaultCreateGoal(vaultGoalId: string, targetUnits: bigint, deadlineSeconds: bigint) {
+  return '0xb5ae5b38' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(targetUnits) + encodeUint(deadlineSeconds);
+}
+
+export function encodeVaultDeposit(vaultGoalId: string, amountUnits: bigint) {
+  return '0xd04b3936' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(amountUnits);
+}
+
+export async function pollTransaction(txHash: string, chain = 'celo', onUpdate?: (status: string) => void) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const data = await apiJson<{ status: string; confirmations?: number }>(`/api/transaction/status?txHash=${encodeURIComponent(txHash)}&chain=${encodeURIComponent(chain)}`).catch(() => ({ status: 'pending' }));
+    onUpdate?.(data.status);
+    if (data.status === 'confirmed') return data;
+    if (data.status === 'failed') throw new Error('Transaction failed or reverted.');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  return { status: 'pending' };
+}

@@ -43,7 +43,12 @@ const io     = new Server(server, {
 
 app.use(cors({ origin: config.SERVER.CORS_ORIGIN }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "frontend")));
+const frontendDir = path.join(__dirname, "frontend");
+const frontendDistDir = path.join(frontendDir, "dist");
+if (require("fs").existsSync(frontendDistDir)) {
+  app.use(express.static(frontendDistDir));
+}
+app.use(express.static(frontendDir));
 
 app.get("/.well-known/agent-registration.json", (req, res) => {
   res.type("application/json");
@@ -325,7 +330,7 @@ app.get("/api/contracts", (_, res) => {
 });
 
 app.get("/logo.svg", (req, res) => {
-  res.sendFile(path.join(__dirname, "frontend", "logo.svg"));
+  res.sendFile(path.join(frontendDir, "logo.svg"));
 });
 
 // ── Admin dashboard ──────────────────────────────────────────────
