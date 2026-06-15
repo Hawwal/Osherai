@@ -268,9 +268,18 @@ export function formatNumber(value: unknown, digits = 2) {
   return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+export function formatTokenNumber(value: unknown) {
+  const amount = Number(value || 0);
+  const small = amount > 0 && amount < 0.01;
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: small ? 0 : 2,
+    maximumFractionDigits: small ? 6 : 2,
+  });
+}
+
 export function formatLocalAmount(amount: unknown, currency = 'USD') {
   const code = String(currency || 'USD').toUpperCase();
-  if (code === 'USD') return '$' + formatNumber(amount, 2);
+  if (code === 'USD') return formatTokenNumber(amount) + ' USDT';
   if (code === 'NGN') return '₦' + formatNumber(amount, 0);
   if (code === 'GHS') return 'GHS ' + formatNumber(amount, 2);
   return formatNumber(amount, 2) + ' ' + code;
@@ -279,7 +288,7 @@ export function formatLocalAmount(amount: unknown, currency = 'USD') {
 export function formatGoalAmount(goal: SavingsGoal, mode: 'local' | 'usdt', field: 'target' | 'saved' | 'weekly' = 'target') {
   if (mode === 'usdt') {
     const value = field === 'target' ? goal.targetAmountUSDT : field === 'weekly' ? goal.weeklyTargetUSDT : goal.currentAmountUSDT;
-    return formatNumber(value, 2) + ' USDT';
+    return formatTokenNumber(value) + ' USDT';
   }
   if (field === 'weekly') return formatLocalAmount(goal.weeklyTargetDisplay, goal.displayCurrency);
   if (field === 'saved') {

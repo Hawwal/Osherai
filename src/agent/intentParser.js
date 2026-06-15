@@ -107,6 +107,9 @@ End with one concrete next step.
 `;
 
 async function parseIntent(userMessage, sessionContext = {}) {
+  const highConfidenceIntent = getHighConfidenceLocalIntent(userMessage);
+  if (highConfidenceIntent) return highConfidenceIntent;
+
   if (ai) {
     try {
       const contextStr = sessionContext.connectedWallet
@@ -141,6 +144,10 @@ async function parseIntent(userMessage, sessionContext = {}) {
 }
 
 function normalizeIntent(intent, originalMessage) {
+  if (isSavingsGoalMessage(originalMessage) && intent?.type !== "query") {
+    return localParseIntent(originalMessage);
+  }
+
   const supported = new Set([
     "transfer",
     "alert",
@@ -159,6 +166,29 @@ function normalizeIntent(intent, originalMessage) {
   if (intent.fromChain && intent.fromChain !== "celo") intent.fromChain = "celo";
 
   return intent;
+}
+
+function getHighConfidenceLocalIntent(message) {
+  const msg = String(message || "").toLowerCase().trim();
+  if (!msg) return null;
+
+  const goalQueryWords = [
+    "show my goals",
+    "my goals",
+    "active goals",
+    "savings goals",
+    "goal progress",
+    "dashboard",
+  ];
+  if (goalQueryWords.some(w => msg.includes(w)) && !/\bsave\b/.test(msg)) {
+    return localParseIntent(message);
+  }
+
+  if (isSavingsGoalMessage(msg)) {
+    return localParseIntent(message);
+  }
+
+  return null;
 }
 
 function localParseIntent(message) {
@@ -307,6 +337,14 @@ function localParseIntent(message) {
   }
 
   return { type: "conversational", originalMessage: message };
+}
+
+function isSavingsGoalMessage(message) {
+  const msg = String(message || "").toLowerCase();
+  const hasSavingsVerb = /\b(save|saving|savings|goal|target|stash|keep aside)\b/.test(msg);
+  const hasGoalContext = /\b(rent|school fees|tuition|emergency fund|emergency|travel|trip|gadget|phone|laptop)\b/.test(msg);
+  const isPureQuery = /\b(show|list|view|check|see)\b/.test(msg) && /\bgoals?\b/.test(msg) && !/\b(create|start|new|save)\b/.test(msg);
+  return !isPureQuery && (hasSavingsVerb || (hasGoalContext && extractAmount(msg)));
 }
 
 function extractAmount(msg) {

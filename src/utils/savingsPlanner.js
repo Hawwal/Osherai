@@ -43,12 +43,14 @@ function createSavingsGoalPlan(intent, existingGoals = [], now = new Date()) {
   }
 
   const displayCurrency = normalizeDisplayCurrency(intent.currency);
-  const targetAmountUSDT = roundMoney(convertDisplayToUSDT(amount, displayCurrency));
+  const targetAmountUSDT = roundTokenAmount(convertDisplayToUSDT(amount, displayCurrency));
   const deadline = parseDeadline(intent.deadlineText, now);
   const daysRemaining = Math.max(1, Math.ceil((deadline - startOfDay(now)) / 86400000));
   const weeksRemaining = Math.max(1, Math.ceil(daysRemaining / 7));
-  const weeklyTargetUSDT = roundMoney(targetAmountUSDT / weeksRemaining);
-  const weeklyTargetDisplay = roundMoney(convertUSDTToDisplay(weeklyTargetUSDT, displayCurrency));
+  const weeklyTargetUSDT = roundTokenAmount(targetAmountUSDT / weeksRemaining);
+  const weeklyTargetDisplay = displayCurrency === "USD"
+    ? roundTokenAmount(convertUSDTToDisplay(weeklyTargetUSDT, displayCurrency))
+    : roundMoney(convertUSDTToDisplay(weeklyTargetUSDT, displayCurrency));
   const category = inferCategory(intent.purpose || intent.originalMessage || "");
   const name = buildGoalName(intent.purpose, category, existingGoals);
 
@@ -58,7 +60,7 @@ function createSavingsGoalPlan(intent, existingGoals = [], now = new Date()) {
     category,
     categoryLabel: CATEGORY_LABELS[category],
     targetAmountUSDT,
-    targetAmountDisplay: roundMoney(amount),
+    targetAmountDisplay: displayCurrency === "USD" ? roundTokenAmount(amount) : roundMoney(amount),
     displayCurrency,
     deadline: deadline.toISOString(),
     currentAmountUSDT: 0,
@@ -84,10 +86,10 @@ function summarizeGoalPlan(goal) {
   const deadline = formatDeadline(goal.deadline);
 
   if (goal.displayCurrency === "USD") {
-    return `Got it. I created your ${goal.name} goal: save ${goal.targetAmountUSDT.toFixed(2)} USDT by ${deadline}.\n\nThat means about ${goal.weeklyTargetUSDT.toFixed(2)} USDT per week. You can switch the dashboard between USDT and local currency as we build the savings flow.`;
+    return `Got it. I created your ${goal.name} goal: save ${formatTokenAmount(goal.targetAmountUSDT)} USDT by ${deadline}.\n\nThat means about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT per week. You can switch the dashboard between USDT and local currency as we build the savings flow.`;
   }
 
-  return `Got it. I created your ${goal.name} goal: save ${targetDisplay} by ${deadline}. That's about ${goal.targetAmountUSDT.toFixed(2)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${goal.weeklyTargetUSDT.toFixed(2)} USDT. The rate is a configurable estimate for now, so we'll plug in a live MiniPay-aligned source in a later step.`;
+  return `Got it. I created your ${goal.name} goal: save ${targetDisplay} by ${deadline}. That's about ${formatTokenAmount(goal.targetAmountUSDT)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT. The rate is a configurable estimate for now, so we'll plug in a live MiniPay-aligned source in a later step.`;
 }
 
 function normalizeDisplayCurrency(currency) {
@@ -184,7 +186,7 @@ function formatDisplayAmount(amount, currency) {
   const normalized = normalizeDisplayCurrency(currency);
   const value = Number(amount || 0);
 
-  if (normalized === "USD") return `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`;
+  if (normalized === "USD") return `${formatTokenAmount(value)} USDT`;
   if (normalized === "NGN") return `NGN ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   if (normalized === "GHS") return `GHS ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `${value.toLocaleString()} ${normalized}`;
@@ -204,11 +206,25 @@ function titleCase(value) {
     .split(/\s+/)
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
+    .join(" ")
+    .replace(/\bUsdt\b/g, "USDT");
 }
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function roundTokenAmount(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
+function formatTokenAmount(value) {
+  const amount = Number(value || 0);
+  const digits = amount > 0 && amount < 0.01 ? 6 : 2;
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: amount > 0 && amount < 0.01 ? 0 : 2,
+    maximumFractionDigits: digits,
+  });
 }
 
 function startOfDay(value) {

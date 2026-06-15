@@ -1,5 +1,5 @@
 import { ChevronLeft, Calendar, TrendingUp, ShieldCheck } from 'lucide-react';
-import { SavingsGoal, categoryEmoji, formatGoalAmount, formatNumber } from '../lib/osher';
+import { SavingsGoal, categoryEmoji, formatGoalAmount, formatTokenNumber } from '../lib/osher';
 
 interface Props {
   goal?: SavingsGoal;
@@ -58,7 +58,7 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
 
       <div className="mx-5 rounded-2xl p-4" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-3 mb-3"><Calendar size={16} color="#9898e8" /><p className="font-display" style={{ fontWeight: 800, color: '#0d0d14' }}>Savings plan</p></div>
-        <p style={{ fontSize: '0.86rem', color: '#6b6b8a', lineHeight: 1.6 }}>Save <strong style={{ color: '#0d0d14' }}>{formatGoalAmount(goal, displayMode, 'weekly')}</strong> weekly to stay on pace. Current on-chain saved balance is {formatNumber(goal.currentAmountUSDT || 0, 2)} USDT.</p>
+        <p style={{ fontSize: '0.86rem', color: '#6b6b8a', lineHeight: 1.6 }}>Save <strong style={{ color: '#0d0d14' }}>{formatGoalAmount(goal, displayMode, 'weekly')}</strong> weekly to stay on pace. Current on-chain saved balance is {formatTokenNumber(goal.currentAmountUSDT || 0)} USDT.</p>
         <div className="flex items-center gap-1.5 mt-3"><TrendingUp size={13} color="#2d7a47" /><span style={{ fontSize: '0.78rem', color: '#2d7a47', fontWeight: 700 }}>{goal.status || 'Active'}</span></div>
       </div>
     </div>
