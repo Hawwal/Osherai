@@ -31,6 +31,7 @@ export type SavingsGoal = {
   vaultGoalStatus?: string;
   vaultCreateTxHash?: string;
   lastDepositTxHash?: string;
+  lastWithdrawalTxHash?: string;
 };
 
 export type DashboardStats = {
@@ -349,6 +350,10 @@ export function encodeVaultCreateGoal(vaultGoalId: string, targetUnits: bigint, 
 
 export function encodeVaultDeposit(vaultGoalId: string, amountUnits: bigint) {
   return '0xd04b3936' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(amountUnits);
+}
+
+export function encodeVaultWithdraw(vaultGoalId: string, amountUnits: bigint) {
+  return '0xcbf8e299' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(amountUnits);
 }
 
 export async function pollTransaction(txHash: string, chain = 'celo', onUpdate?: (status: string) => void) {

@@ -7,11 +7,13 @@ interface Props {
   onBack: () => void;
   onCreateVaultGoal: (goal: SavingsGoal) => void;
   onTopUp: (goal: SavingsGoal) => void;
+  onWithdraw: (goal: SavingsGoal) => void;
+  onDeleteGoal: (goal: SavingsGoal) => void;
   onToggleRoundUp: (goal: SavingsGoal) => void;
   onLogSpend: (goal: SavingsGoal) => void;
 }
 
-export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal, onTopUp, onToggleRoundUp, onLogSpend }: Props) {
+export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onToggleRoundUp, onLogSpend }: Props) {
   if (!goal) {
     return <div className="flex flex-col h-full" style={{ background: '#f5f5fb' }}><div className="px-5 pt-12"><button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}><ChevronLeft size={18} /></button><h1 className="font-display" style={{ marginTop: 24, fontSize: '1.6rem', fontWeight: 800 }}>Create a goal in AI Chat</h1><p style={{ color: '#6b6b8a', marginTop: 8 }}>Tell Osher what you want to save for, the amount, and the deadline.</p></div></div>;
   }
@@ -20,6 +22,7 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (pct / 100) * circumference;
   const onChainReady = goal.vaultGoalCreated === true;
+  const hasBalance = Number(goal.currentAmountUSDT || 0) > 0;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-8" style={{ background: '#f5f5fb', scrollbarWidth: 'none' }}>
@@ -47,6 +50,8 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
       <div className="px-5 grid grid-cols-2 gap-3 mb-5">
         <button onClick={() => onTopUp(goal)} disabled={!onChainReady} className="py-3.5 rounded-2xl" style={{ background: '#CCCCF7', color: '#171717', opacity: onChainReady ? 1 : 0.45, fontWeight: 800 }}>Top up</button>
         <button onClick={() => onCreateVaultGoal(goal)} disabled={onChainReady} className="py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: onChainReady ? '#e8f5ec' : '#171717', color: onChainReady ? '#2d7a47' : '#fff', fontWeight: 800 }}><ShieldCheck size={15} />{onChainReady ? 'Ready' : 'Create vault'}</button>
+        <button onClick={() => onWithdraw(goal)} disabled={!onChainReady || !hasBalance} className="py-3.5 rounded-2xl" style={{ background: '#fff3dc', color: '#b36a00', opacity: onChainReady && hasBalance ? 1 : 0.45, fontWeight: 800 }}>Withdraw</button>
+        <button onClick={() => onDeleteGoal(goal)} disabled={hasBalance} className="py-3.5 rounded-2xl" style={{ background: '#fff5f5', color: '#c0392b', opacity: hasBalance ? 0.45 : 1, fontWeight: 800 }}>{onChainReady ? 'Archive' : 'Delete'}</button>
         <button onClick={() => onToggleRoundUp(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>{goal.roundUpEnabled ? 'Round-up on' : 'Round-up off'}</button>
         <button onClick={() => onLogSpend(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Log spend</button>
       </div>

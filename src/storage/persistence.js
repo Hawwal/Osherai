@@ -101,6 +101,7 @@ async function saveGoal(userId, goal) {
 async function listGoals(userId) {
   if (!isSupabaseConfigured()) {
     return (memory.goalsByUser.get(userId) || [])
+      .filter(goal => goal.status !== "withdrawn")
       .slice()
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .map(recordToGoal);
@@ -109,10 +110,30 @@ async function listGoals(userId) {
   const records = await supabaseRequest("/goals", {
     query: {
       user_id: `eq.${userId}`,
+      status: "neq.withdrawn",
       order: "created_at.desc",
     },
   });
   return (records || []).map(recordToGoal);
+}
+
+async function deleteGoal(userId, goalId) {
+  if (!isSupabaseConfigured()) {
+    const goals = memory.goalsByUser.get(userId) || [];
+    const next = goals.filter(goal => goal.id !== goalId);
+    memory.goalsByUser.set(userId, next);
+    return { deleted: next.length !== goals.length };
+  }
+
+  const records = await supabaseRequest("/goals", {
+    method: "DELETE",
+    query: {
+      id: `eq.${goalId}`,
+      user_id: `eq.${userId}`,
+    },
+    headers: { Prefer: "return=representation" },
+  });
+  return { deleted: Array.isArray(records) ? records.length > 0 : true };
 }
 
 async function logAgentAction(userId, action) {
@@ -514,6 +535,7 @@ module.exports = {
   upsertWallet,
   saveGoal,
   listGoals,
+  deleteGoal,
   logAgentAction,
   listAgentLogs,
   recordTransaction,

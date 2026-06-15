@@ -700,6 +700,113 @@ async function recordVaultDeposit(sessionId, goalId, deposit = {}) {
   };
 }
 
+async function recordVaultWithdrawal(sessionId, goalId, withdrawal = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) {
+    return { success: false, error: "Goal not found" };
+  }
+
+  const amountUSDT = Number(withdrawal.amountUSDT || withdrawal.amount || 0);
+  if (!Number.isFinite(amountUSDT) || amountUSDT <= 0) {
+    return { success: false, error: "amountUSDT must be greater than 0" };
+  }
+
+  const currentAmountUSDT = Math.max(0, roundMoney(Number(goal.currentAmountUSDT || 0) - amountUSDT));
+  const targetAmountUSDT = Number(goal.targetAmountUSDT || 1);
+  const progressPercent = targetAmountUSDT > 0 ? Math.min(100, (currentAmountUSDT / targetAmountUSDT) * 100) : 0;
+  const status = currentAmountUSDT <= 0 ? "withdrawn" : (goal.status || "active");
+
+  const updatedGoal = {
+    ...goal,
+    currentAmountUSDT,
+    progressPercent,
+    status,
+    lastWithdrawalTxHash: withdrawal.txHash || goal.lastWithdrawalTxHash,
+  };
+
+  const savedGoal = await safePersist("save vault withdrawal progress", () => persistence.saveGoal(session.userId, updatedGoal), updatedGoal);
+  session.goals = status === "withdrawn"
+    ? (session.goals || []).filter(item => item.id !== goalId)
+    : upsertGoal(session.goals, savedGoal);
+
+  await safePersist("record vault withdrawal transaction", () => persistence.recordTransaction(session.userId, {
+    goalId,
+    type: "vault_withdrawal",
+    token: "USDT",
+    amountUSDT,
+    txHash: withdrawal.txHash,
+    status: "confirmed",
+  }));
+
+  const message = currentAmountUSDT <= 0
+    ? `Withdrew ${amountUSDT.toFixed(2)} USDT and archived ${savedGoal.name}.`
+    : `Withdrew ${amountUSDT.toFixed(2)} USDT from ${savedGoal.name}.`;
+
+  await safePersist("log vault withdrawal", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "vault_withdrawal",
+    amountUSDT,
+    message,
+    txHash: withdrawal.txHash,
+  }));
+
+  return {
+    success: true,
+    goal: savedGoal,
+    goals: session.goals,
+    message,
+  };
+}
+
+async function archiveOrDeleteGoal(sessionId, goalId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) return { success: false, error: "Goal not found" };
+
+  if (Number(goal.currentAmountUSDT || 0) > 0) {
+    return { success: false, error: "Withdraw this goal's savings before deleting or archiving it." };
+  }
+
+  if (goal.vaultGoalCreated) {
+    const updatedGoal = {
+      ...goal,
+      currentAmountUSDT: 0,
+      progressPercent: 0,
+      status: "withdrawn",
+      vaultGoalStatus: goal.vaultGoalStatus || "archived",
+    };
+    const savedGoal = await safePersist("archive goal", () => persistence.saveGoal(session.userId, updatedGoal), updatedGoal);
+    session.goals = (session.goals || []).filter(item => item.id !== goalId);
+    await safePersist("log goal archive", () => persistence.logAgentAction(session.userId, {
+      goalId,
+      type: "goal_archived",
+      message: `${savedGoal.name} was archived.`,
+    }));
+    return { success: true, action: "archived", message: `${savedGoal.name} archived.`, goals: session.goals };
+  }
+
+  const result = await safePersist("delete empty goal", () => persistence.deleteGoal(session.userId, goalId), { deleted: true });
+  session.goals = (session.goals || []).filter(item => item.id !== goalId);
+  await safePersist("log goal deletion", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "goal_deleted",
+    message: `${goal.name} was deleted.`,
+  }));
+  return {
+    success: Boolean(result.deleted),
+    action: "deleted",
+    message: `${goal.name} deleted.`,
+    goals: session.goals,
+  };
+}
+
 async function getActivityForSession(sessionId, limit = 25) {
   const session = activeSessions.get(sessionId) || createSession(sessionId, {});
   activeSessions.set(sessionId, session);
@@ -1179,6 +1286,8 @@ module.exports = {
   getGoalsForSession,
   markVaultGoalCreated,
   recordVaultDeposit,
+  recordVaultWithdrawal,
+  archiveOrDeleteGoal,
   getActivityForSession,
   getDashboardForSession,
   setRoundUpPreference,

@@ -18,6 +18,8 @@ const {
   getGoalsForSession,
   markVaultGoalCreated,
   recordVaultDeposit,
+  recordVaultWithdrawal,
+  archiveOrDeleteGoal,
   getActivityForSession,
   getDashboardForSession,
   setRoundUpPreference,
@@ -214,6 +216,24 @@ app.post("/api/goals/:sessionId/:goalId/vault-created", async (req, res) => {
 app.post("/api/goals/:sessionId/:goalId/deposit-confirmed", async (req, res) => {
   try {
     const result = await recordVaultDeposit(req.params.sessionId, req.params.goalId, req.body || {});
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId/:goalId/withdrawal-confirmed", async (req, res) => {
+  try {
+    const result = await recordVaultWithdrawal(req.params.sessionId, req.params.goalId, req.body || {});
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/goals/:sessionId/:goalId", async (req, res) => {
+  try {
+    const result = await archiveOrDeleteGoal(req.params.sessionId, req.params.goalId);
     res.status(result.success ? 200 : 400).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

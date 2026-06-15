@@ -34,6 +34,7 @@ import {
   encodeErc20Approve,
   encodeVaultCreateGoal,
   encodeVaultDeposit,
+  encodeVaultWithdraw,
   formatUnits,
   isMiniPay,
   loadAppData,
@@ -235,6 +236,61 @@ export default function App() {
     }
   };
 
+  const withdrawGoal = async (goal: SavingsGoal) => {
+    try {
+      ensureVaultReady();
+      if (!goal.vaultGoalCreated) throw new Error('This goal is not on-chain yet.');
+      const available = Number(goal.currentAmountUSDT || 0);
+      if (available <= 0) throw new Error('This goal has no saved balance to withdraw.');
+      const value = window.prompt('Amount to withdraw in USDT', available.toFixed(2));
+      if (!value) return;
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid USDT amount.');
+      if (amount > available) throw new Error(`You can withdraw up to ${available.toFixed(2)} USDT.`);
+      const ethereum = (window as any).ethereum;
+      const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
+      const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
+      setNotice('Withdraw from your goal in your wallet...');
+      const txHash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: walletInfo.address,
+          to: data.contracts.savingsVault,
+          value: '0x0',
+          data: encodeVaultWithdraw(vaultGoalId, amountUnits),
+        }],
+      });
+      setNotice('Withdrawal submitted. Checking confirmation...');
+      await pollTransaction(txHash, 'celo');
+      const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/withdrawal-confirmed', {
+        method: 'POST',
+        body: JSON.stringify({ amountUSDT: amount, txHash }),
+      });
+      await refreshData();
+      if (amount >= available) setOverlay(null);
+      setNotice(result.message || `${amount.toFixed(2)} USDT withdrawn from ${goal.name || 'your goal'}.`);
+    } catch (err) {
+      setNotice(cleanWalletError(err));
+    }
+  };
+
+  const deleteOrArchiveGoal = async (goal: SavingsGoal) => {
+    try {
+      const balance = Number(goal.currentAmountUSDT || 0);
+      if (balance > 0) throw new Error(`Withdraw ${balance.toFixed(2)} USDT before deleting or archiving this goal.`);
+      const action = goal.vaultGoalCreated ? 'archive' : 'delete';
+      if (!window.confirm(`Are you sure you want to ${action} "${goal.name || 'this goal'}"?`)) return;
+      const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id), {
+        method: 'DELETE',
+      });
+      await refreshData();
+      setOverlay(null);
+      setNotice(result.message || (action === 'archive' ? 'Goal archived.' : 'Goal deleted.'));
+    } catch (err) {
+      setNotice(cleanWalletError(err));
+    }
+  };
+
   const toggleRoundUp = async (goal: SavingsGoal) => {
     const result = await apiJson<any>('/api/roundups/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/preference', {
       method: 'POST',
@@ -287,7 +343,7 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (overlay === 'goal-detail') return <GoalDetailsScreen goal={selectedGoal} displayMode={displayMode} onBack={() => setOverlay(null)} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+    if (overlay === 'goal-detail') return <GoalDetailsScreen goal={selectedGoal} displayMode={displayMode} onBack={() => setOverlay(null)} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
     if (overlay === 'notifications') return <NotificationsScreen onBack={() => setOverlay(null)} />;
     if (overlay === 'recommendations') return <RecommendationsScreen recommendations={data.recommendations} onUpdate={updateRecommendation} />;
     if (overlay === 'yield') return <YieldScreen comingSoon />;
@@ -298,7 +354,7 @@ export default function App() {
       case 'home':
         return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setTab('chat')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
       case 'goals':
-        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
       case 'chat':
         return <AIChatScreen userName={userDisplayName} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':
