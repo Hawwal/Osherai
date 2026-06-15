@@ -34,12 +34,14 @@ import {
   encodeErc20Approve,
   encodeVaultCreateGoal,
   encodeVaultDeposit,
+  formatUnits,
   isMiniPay,
   loadAppData,
   loadNetworkConfig,
   loadStoredWallet,
   parseUnits,
   pollTransaction,
+  readErc20Balance,
   storeAuthProfile,
 } from './lib/osher';
 
@@ -194,6 +196,11 @@ export default function App() {
       const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
       const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
       const ethereum = (window as any).ethereum;
+      setNotice('Checking your Celo USDT balance...');
+      const balanceUnits = await readErc20Balance(data.contracts.savingsToken!, walletInfo.address!);
+      if (balanceUnits < amountUnits) {
+        throw new Error(`Your Celo USDT balance is ${formatUnits(balanceUnits, SAVINGS_TOKEN_DECIMALS, 2)} USDT, but this deposit needs ${amount.toFixed(2)} USDT.`);
+      }
       setNotice('Approve USDT for the vault...');
       const approveHash = await ethereum.request({
         method: 'eth_sendTransaction',
@@ -263,6 +270,12 @@ export default function App() {
     await refreshData();
   };
 
+  const handleProfileUpdate = (profile: AuthProfile) => {
+    storeAuthProfile(profile);
+    setUserDisplayName(getUserDisplayName());
+    setNotice(profile.name ? `Profile updated. Hi ${profile.name}.` : 'Profile updated.');
+  };
+
   const handleGoalClick = (goal?: SavingsGoal) => {
     if (goal?.id) setSelectedGoalId(goal.id);
     setOverlay('goal-detail');
@@ -289,9 +302,9 @@ export default function App() {
       case 'chat':
         return <AIChatScreen userName={userDisplayName} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':
-        return <TipsScreen tips={data.tips} />;
+        return <TipsScreen tips={data.tips} onExplainTip={sendMessage} />;
       case 'profile':
-        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} />;
+        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} onProfileUpdate={handleProfileUpdate} onOpenChat={() => setTab('chat')} />;
       default:
         return null;
     }

@@ -303,6 +303,7 @@ export function cleanWalletError(err: any) {
   const message = err?.message || String(err);
   if (err?.code === 4001 || message.toLowerCase().includes('rejected')) return 'Wallet request cancelled.';
   if (message.toLowerCase().includes('insufficient')) return 'Your wallet does not have enough funds for this transaction and network fee.';
+  if (message.toLowerCase().includes('transfer amount exceeds balance')) return 'Your Celo USDT balance is too low for this deposit. Add USDT to your wallet, then try again.';
   return message;
 }
 
@@ -321,6 +322,22 @@ export function bytes32FromString(value: string) {
 
 function encodeAddress(address: string) { return address.toLowerCase().replace(/^0x/, '').padStart(64, '0'); }
 function encodeUint(value: bigint) { return value.toString(16).padStart(64, '0'); }
+
+export function formatUnits(value: bigint, decimals: number, digits = 2) {
+  const base = 10n ** BigInt(decimals);
+  const whole = value / base;
+  const fraction = value % base;
+  const fractionText = fraction.toString().padStart(decimals, '0').slice(0, digits);
+  return `${whole.toString()}.${fractionText}`.replace(/\.?0+$/, '');
+}
+
+export async function readErc20Balance(tokenAddress: string, owner: string): Promise<bigint> {
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) throw new Error('No wallet provider detected.');
+  const data = '0x70a08231' + encodeAddress(owner);
+  const result = await ethereum.request({ method: 'eth_call', params: [{ to: tokenAddress, data }, 'latest'] });
+  return BigInt(result || '0x0');
+}
 
 export function encodeErc20Approve(spender: string, amountUnits: bigint) {
   return '0x095ea7b3' + encodeAddress(spender) + encodeUint(amountUnits);

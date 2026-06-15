@@ -12,6 +12,7 @@
     "deploy:vault:alfajores": "hardhat run scripts/deploy-savings-vault.js --network alfajores",
     "deploy:vault:celo": "hardhat run scripts/deploy-savings-vault.js --network celo",
     "verify:celo": "hardhat run scripts/verify-celo.js --network celo",
+    "verify:vault:celo": "hardhat run scripts/verify-savings-vault.js --network celo",
     "fees:withdraw": "hardhat run scripts/withdraw-fees.js --network celo",
     "build:frontend": "vite build && node scripts/fix-frontend-html.js",
     "build": "npm run build:frontend && hardhat compile",

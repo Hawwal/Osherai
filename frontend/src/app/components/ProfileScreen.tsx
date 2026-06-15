@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import osherLogo from "../../imports/Osher_wallet_logo.png";
-import { WalletInfo, shortAddress } from "../lib/osher";
+import { AuthProfile, WalletInfo, loadStoredAuthProfile, shortAddress } from "../lib/osher";
 
 interface Props {
   userName?: string;
@@ -10,40 +10,64 @@ interface Props {
   displayMode?: "local" | "usdt";
   onDisplayModeChange?: (mode: "local" | "usdt") => void;
   onDisconnect?: () => void;
+  onProfileUpdate?: (profile: AuthProfile) => void;
+  onOpenChat?: () => void;
 }
 
-const PREFERENCE_SECTIONS = [
-  {
-    title: "Preferences",
-    items: [
-      { icon: <Bell size={16} />, bg: "#fff3dc", ic: "#b36a00", label: "Notifications", sub: "Weekly reminders enabled" },
-      { icon: <Shield size={16} />, bg: "#e8f5ec", ic: "#2d7a47", label: "Security", sub: "Biometric auth on" },
-      { icon: <DollarSign size={16} />, bg: "#f0f0ff", ic: "#5a5a8a", label: "Currency Preferences", sub: "NGN + USD display" },
-    ],
-  },
-  {
-    title: "Support",
-    items: [
-      { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Help & Support", sub: "Chat · 24/7 available" },
-    ],
-  },
-];
-
-export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayModeChange, onDisconnect }: Props = {}) {
-  const [usd, setUsd] = useState(false);
+export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayModeChange, onDisconnect, onProfileUpdate, onOpenChat }: Props = {}) {
+  const [usd, setUsd] = useState(displayMode === "usdt");
+  const [notifications, setNotifications] = useState(true);
+  const [securityLock, setSecurityLock] = useState(true);
+  const [profile, setProfile] = useState<AuthProfile>(() => loadStoredAuthProfile());
   const displayName = userName || "there";
   const walletLabel = walletInfo?.address
     ? `${walletInfo.walletType === "minipay" ? "MiniPay" : "MetaMask"} · ${shortAddress(walletInfo.address)}`
     : "No wallet connected";
+  const contact = profile.contact || "Contact not set";
+  const updateProfile = () => {
+    const nextName = window.prompt("Your name", displayName === "there" ? "" : displayName);
+    if (nextName === null) return;
+    const nextContact = window.prompt("Email or phone", profile.contact || "");
+    if (nextContact === null) return;
+    const next = { ...profile, name: nextName.trim(), contact: nextContact.trim() };
+    setProfile(next);
+    onProfileUpdate?.(next);
+  };
+  const copyWallet = async () => {
+    if (!walletInfo?.address) {
+      window.alert("Connect MiniPay or MetaMask first.");
+      return;
+    }
+    await navigator.clipboard?.writeText(walletInfo.address).catch(() => null);
+    window.alert("Wallet address copied.");
+  };
+  const toggleCurrency = () => {
+    const nextMode = displayMode === "usdt" ? "local" : "usdt";
+    setUsd(nextMode === "usdt");
+    onDisplayModeChange?.(nextMode);
+  };
   const sections = [
     {
       title: "Account",
       items: [
-        { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : displayName },
-        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletLabel },
+        { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : `${displayName} · ${contact}`, action: updateProfile },
+        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletLabel, action: copyWallet },
       ],
     },
-    ...PREFERENCE_SECTIONS,
+    {
+      title: "Preferences",
+      items: [
+        { icon: <Bell size={16} />, bg: "#fff3dc", ic: "#b36a00", label: "Notifications", sub: notifications ? "Weekly reminders enabled" : "Weekly reminders paused", action: () => setNotifications(!notifications) },
+        { icon: <Shield size={16} />, bg: "#e8f5ec", ic: "#2d7a47", label: "Security", sub: securityLock ? "App lock reminder on" : "App lock reminder off", action: () => setSecurityLock(!securityLock) },
+        { icon: <DollarSign size={16} />, bg: "#f0f0ff", ic: "#5a5a8a", label: "Currency Preferences", sub: displayMode === "usdt" ? "Showing USDT balances" : "Showing local currency", action: toggleCurrency },
+      ],
+    },
+    {
+      title: "Support",
+      items: [
+        { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Help & Support", sub: "Open Osher AI chat", action: onOpenChat },
+      ],
+    },
   ];
 
   return (
@@ -94,10 +118,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
           <p style={{ fontSize: "0.75rem", color: "#9a9ab8", marginTop: 1 }}>Display all balances in USD alongside local currency</p>
         </div>
         <button
-          onClick={() => {
-            setUsd(!usd);
-            onDisplayModeChange?.(displayMode === "usdt" ? "local" : "usdt");
-          }}
+          onClick={toggleCurrency}
           className="flex-shrink-0"
           style={{
             width: 48, height: 28, borderRadius: 14,
@@ -130,6 +151,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
             {s.items.map((item, i) => (
               <button
                 key={item.label}
+                onClick={item.action}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
                 style={{ borderBottom: i < s.items.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}
               >
