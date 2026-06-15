@@ -14,8 +14,8 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
   const loginProof = walletInfo?.loginSignature || walletInfo?.loginTxHash;
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background">
-      <div className="px-6 pt-14 pb-6 flex-shrink-0">
+    <div className="h-full overflow-y-auto bg-background" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="px-6 pt-10 pb-5">
         <div className="flex items-center gap-2.5 mb-6">
           <div style={{ width: 38, height: 38, borderRadius: 12, overflow: 'hidden', background: '#f5f5fb', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.09)' }}>
             <ImageWithFallback src={osherLogo} alt="Osher AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -30,16 +30,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 px-5 flex flex-col gap-4 overflow-y-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 28 }}>
-        {connected && (
-          <div className="rounded-3xl p-5" style={{ background: '#e8f5ec', border: '1px solid rgba(76,175,117,0.2)' }}>
-            <p className="font-display" style={{ fontWeight: 800, color: '#0d0d14', fontSize: '1rem' }}>Connected</p>
-            <p style={{ fontSize: '0.82rem', color: '#2d7a47', marginTop: 4 }}>{walletInfo?.walletType === 'minipay' ? 'MiniPay' : 'MetaMask'} · {shortAddress(walletInfo?.address)}</p>
-            {loginProof && <p style={{ fontSize: '0.72rem', color: '#6b6b8a', marginTop: 6 }}>Login signature {loginProof.slice(0, 12)}...{loginProof.slice(-8)}</p>}
-            <button onClick={onDisconnect} className="mt-4 px-4 py-2 rounded-xl" style={{ background: '#fff', color: '#2d7a47', fontWeight: 700, fontSize: '0.82rem' }}>Disconnect</button>
-          </div>
-        )}
-
+      <div className="px-5 flex flex-col gap-4">
         <button onClick={() => onConnect('minipay')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden transition-transform active:scale-98" style={{ background: '#171717', opacity: isMiniPay() || !connected ? 1 : 0.92 }}>
           <div style={{ position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%', background: 'rgba(204,204,247,0.08)' }} />
           <div className="flex items-center justify-between mb-4 relative z-10">
@@ -59,6 +50,19 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}><ArrowRight size={15} color="#fff" /></div>
           </div>
         </button>
+
+        {connected && (
+          <div className="rounded-2xl p-4" style={{ background: '#e8f5ec', border: '1px solid rgba(76,175,117,0.2)' }}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-display" style={{ fontWeight: 800, color: '#0d0d14', fontSize: '0.95rem' }}>Connected</p>
+                <p style={{ fontSize: '0.8rem', color: '#2d7a47', marginTop: 3 }}>{walletInfo?.walletType === 'minipay' ? 'MiniPay' : 'MetaMask'} · {shortAddress(walletInfo?.address)}</p>
+                {loginProof && <p style={{ fontSize: '0.7rem', color: '#6b6b8a', marginTop: 4 }}>Login signature {loginProof.slice(0, 10)}...{loginProof.slice(-8)}</p>}
+              </div>
+              <button onClick={onDisconnect} className="px-3 py-2 rounded-xl flex-shrink-0" style={{ background: '#fff', color: '#2d7a47', fontWeight: 700, fontSize: '0.78rem' }}>Disconnect</button>
+            </div>
+          </div>
+        )}
 
         <button onClick={() => onConnect('metamask')} className="w-full rounded-3xl p-5 text-left border transition-transform active:scale-98" style={{ background: '#fff', borderColor: 'rgba(0,0,0,0.09)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', opacity: isMetaMask() || !connected ? 1 : 0.92 }}>
           <div className="flex items-center justify-between mb-3">
@@ -86,7 +90,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
         </div>
       </div>
 
-      <div className="px-5 pb-8 pt-4 flex-shrink-0"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>
+      <div className="px-5 pb-8 pt-4"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>
     </div>
   );
 }

@@ -10,6 +10,7 @@ const http       = require("http");
 const fs         = require("fs");
 const { spawnSync } = require("child_process");
 const { Server } = require("socket.io");
+const fetch      = require("node-fetch");
 
 const config                  = require("./config/keys");
 const {
@@ -88,6 +89,97 @@ app.get("/logo.svg", (req, res) => res.sendFile(path.join(frontendDir, "logo.svg
 app.get("/.well-known/agent-registration.json", (req, res) => {
   res.type("application/json");
   res.sendFile(path.join(__dirname, "frontend", "agent-registration.json"));
+});
+
+// ── Supabase Auth API ─────────────────────────────────────────────
+
+function isSupabaseAuthConfigured() {
+  return Boolean(config.SUPABASE?.URL && config.SUPABASE?.ANON_KEY);
+}
+
+async function supabaseAuthRequest(pathname, body) {
+  const response = await fetch(`${config.SUPABASE.URL.replace(/\/$/, "")}/auth/v1${pathname}`, {
+    method: "POST",
+    headers: {
+      apikey: config.SUPABASE.ANON_KEY,
+      Authorization: `Bearer ${config.SUPABASE.ANON_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error_description || data.msg || data.message || `Supabase auth ${response.status}`);
+  }
+  return data;
+}
+
+function normalizeAuthPayload(body = {}) {
+  const method = body.method === "phone" ? "phone" : "email";
+  const contact = String(body.contact || body.value || "").trim();
+  const name = String(body.name || "").trim();
+  const sessionId = String(body.sessionId || "anonymous");
+  if (!contact) throw new Error(method === "email" ? "Email address is required." : "Phone number is required.");
+  return { method, contact, name, sessionId };
+}
+
+app.post("/api/auth/start", async (req, res) => {
+  try {
+    const { method, contact, name, sessionId } = normalizeAuthPayload(req.body);
+    if (!isSupabaseAuthConfigured()) {
+      return res.json({
+        success: true,
+        demo: true,
+        message: "Supabase Auth is not configured on this server. Local demo OTP accepted.",
+      });
+    }
+
+    const payload = {
+      create_user: true,
+      data: { name, local_session_id: sessionId },
+    };
+    if (method === "email") payload.email = contact;
+    else payload.phone = contact;
+
+    await supabaseAuthRequest("/otp", payload);
+    res.json({ success: true, message: "Verification code sent." });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/verify", async (req, res) => {
+  try {
+    const { method, contact, name } = normalizeAuthPayload(req.body);
+    const token = String(req.body.otp || req.body.token || "").trim();
+    if (token.length < 6) throw new Error("Enter the 6-digit verification code.");
+
+    if (!isSupabaseAuthConfigured()) {
+      return res.json({
+        success: true,
+        demo: true,
+        user: { name, contact, method, userId: `local:${contact}` },
+      });
+    }
+
+    const payload = { token, type: method === "email" ? "email" : "sms" };
+    if (method === "email") payload.email = contact;
+    else payload.phone = contact;
+
+    const data = await supabaseAuthRequest("/verify", payload);
+    const user = data.user || {};
+    res.json({
+      success: true,
+      user: {
+        name: name || user.user_metadata?.name || "",
+        contact,
+        method,
+        userId: user.id,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Agent API ─────────────────────────────────────────────────────

@@ -2,17 +2,21 @@ import { useState } from "react";
 import { ArrowRight, Mail, Phone, ChevronLeft } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import osherLogo from "../../imports/Osher_wallet_logo.png";
+import { AuthMethod, AuthProfile, startSupabaseOtp, verifySupabaseOtp } from "../lib/osher";
 
 interface Props {
-  onAuth: () => void;
+  onAuth: (profile: AuthProfile) => void;
 }
 
 export function AuthScreen({ onAuth }: Props) {
   const [mode, setMode] = useState<"login" | "signup">("signup");
-  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [method, setMethod] = useState<AuthMethod>("email");
+  const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const handleOtpChange = (idx: number, val: string) => {
     if (val.length > 1) return;
@@ -22,6 +26,42 @@ export function AuthScreen({ onAuth }: Props) {
     if (val && idx < 5) {
       const el = document.getElementById(`otp-${idx + 1}`);
       el?.focus();
+    }
+  };
+
+  const profile = (): AuthProfile => ({
+    name: name.trim(),
+    contact: value.trim(),
+    method,
+  });
+
+  const sendOtp = async () => {
+    if (!value.trim() || busy) return;
+    setBusy(true);
+    setStatus("");
+    try {
+      const result = await startSupabaseOtp(profile());
+      setOtpSent(true);
+      setStatus(result.demo ? "Supabase is not configured on this server yet. Use any 6-digit code for local testing." : "Verification code sent.");
+    } catch (err: any) {
+      setStatus(err?.message || "Could not send verification code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    const code = otp.join("");
+    if (code.length < 6 || busy) return;
+    setBusy(true);
+    setStatus("");
+    try {
+      const result = await verifySupabaseOtp({ ...profile(), otp: code });
+      onAuth(result.user || profile());
+    } catch (err: any) {
+      setStatus(err?.message || "Verification failed.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -102,6 +142,24 @@ export function AuthScreen({ onAuth }: Props) {
             </div>
 
             {/* Input */}
+            {mode === "signup" && (
+              <div className="mb-5">
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a9ab8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
+                  Your name
+                </label>
+                <div className="rounded-2xl border px-4 py-4" style={{ borderColor: "rgba(0,0,0,0.1)", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                  <input
+                    className="w-full outline-none bg-transparent"
+                    type="text"
+                    placeholder="What should Osher call you?"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{ fontSize: "1rem", color: "#0d0d14", fontFamily: "inherit" }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mb-6">
               <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#9a9ab8", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
                 {method === "email" ? "Email address" : "Phone number"}
@@ -119,17 +177,18 @@ export function AuthScreen({ onAuth }: Props) {
             </div>
 
             <button
-              onClick={() => value.trim() && setOtpSent(true)}
+              onClick={sendOtp}
               className="w-full py-4 rounded-2xl flex items-center justify-center gap-2.5"
               style={{
                 background: "#171717", color: "#fff", fontWeight: 700, fontSize: "1rem",
                 fontFamily: "'Bricolage Grotesque', sans-serif",
-                opacity: value.trim() ? 1 : 0.45,
+                opacity: value.trim() && !busy ? 1 : 0.45,
                 boxShadow: value.trim() ? "0 6px 24px rgba(23,23,23,0.25)" : "none",
               }}
             >
-              Send verification code <ArrowRight size={18} />
+              {busy ? "Sending..." : "Send verification code"} <ArrowRight size={18} />
             </button>
+            {status && <p style={{ fontSize: "0.78rem", color: status.includes("Could") ? "#c0392b" : "#6b6b8a", marginTop: 12, textAlign: "center", lineHeight: 1.45 }}>{status}</p>}
           </>
         ) : (
           <>
@@ -169,16 +228,18 @@ export function AuthScreen({ onAuth }: Props) {
             </div>
 
             <button
-              onClick={onAuth}
+              onClick={verifyOtp}
               className="w-full py-4 rounded-2xl flex items-center justify-center gap-2.5"
               style={{
                 background: "#171717", color: "#fff", fontWeight: 700, fontSize: "1rem",
                 fontFamily: "'Bricolage Grotesque', sans-serif",
-                boxShadow: "0 6px 24px rgba(23,23,23,0.25)",
+                opacity: otp.join("").length === 6 && !busy ? 1 : 0.45,
+                boxShadow: otp.join("").length === 6 ? "0 6px 24px rgba(23,23,23,0.25)" : "none",
               }}
             >
-              Verify & Continue <ArrowRight size={18} />
+              {busy ? "Verifying..." : "Verify & Continue"} <ArrowRight size={18} />
             </button>
+            {status && <p style={{ fontSize: "0.78rem", color: status.includes("failed") ? "#c0392b" : "#6b6b8a", marginTop: 12, textAlign: "center", lineHeight: 1.45 }}>{status}</p>}
           </>
         )}
       </div>

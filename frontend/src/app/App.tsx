@@ -17,6 +17,7 @@ import { SocialScreen } from './components/SocialScreen';
 import { ChallengesScreen } from './components/ChallengesScreen';
 import {
   AppData,
+  AuthProfile,
   ContractsConfig,
   Recommendation,
   SavingsGoal,
@@ -39,6 +40,7 @@ import {
   loadStoredWallet,
   parseUnits,
   pollTransaction,
+  storeAuthProfile,
 } from './lib/osher';
 
 type Flow = 'splash' | 'onboarding' | 'auth' | 'wallet' | 'app';
@@ -69,9 +71,9 @@ export default function App() {
   const [data, setData] = useState<AppData>(EMPTY_DATA);
   const [notice, setNotice] = useState('');
   const [miniPayLaunchProofRequested, setMiniPayLaunchProofRequested] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState(() => getUserDisplayName());
 
   const selectedGoal = useMemo(() => data.goals.find(goal => goal.id === selectedGoalId) || data.goals[0], [data.goals, selectedGoalId]);
-  const userDisplayName = getUserDisplayName();
 
   useEffect(() => {
     loadNetworkConfig().then(setNetworkConfig).catch(() => null);
@@ -126,6 +128,13 @@ export default function App() {
     setWalletInfo({});
     setFlow('wallet');
     setNotice('Wallet disconnected.');
+  };
+
+  const handleAuth = (profile: AuthProfile) => {
+    const stored = storeAuthProfile(profile);
+    setUserDisplayName(getUserDisplayName());
+    setFlow('wallet');
+    setNotice(stored.name ? `Welcome, ${stored.name}. Connect your wallet to continue.` : 'Account verified. Connect your wallet to continue.');
   };
 
   const sendMessage = async (message: string) => {
@@ -301,7 +310,7 @@ export default function App() {
       >
         {flow === 'splash' && <SplashScreen onDone={handleSplashDone} />}
         {flow === 'onboarding' && <OnboardingScreen onContinue={() => setFlow('auth')} />}
-        {flow === 'auth' && <AuthScreen onAuth={() => setFlow('wallet')} />}
+        {flow === 'auth' && <AuthScreen onAuth={handleAuth} />}
         {flow === 'wallet' && <WalletScreen onConnect={handleWalletConnect} walletInfo={walletInfo} onDisconnect={disconnectWallet} />}
 
         {flow === 'app' && (

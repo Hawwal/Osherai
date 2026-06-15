@@ -68,6 +68,14 @@ export type ContractsConfig = { network?: string; savingsVault?: string; savings
 
 export type NetworkConfig = { chainId: string; chainName: string; nativeCurrency: { name: string; symbol: string; decimals: number }; rpcUrls: string[]; blockExplorerUrls: string[]; };
 
+export type AuthMethod = 'email' | 'phone';
+export type AuthProfile = {
+  name?: string;
+  contact?: string;
+  method?: AuthMethod;
+  userId?: string;
+};
+
 export type AppData = {
   goals: SavingsGoal[];
   dashboard: DashboardStats;
@@ -173,11 +181,15 @@ function buildLoginMessage(address: string, walletType: WalletType) {
   return { message, signedAt };
 }
 
+function stringToHex(value: string) {
+  return '0x' + Array.from(new TextEncoder().encode(value)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export async function requestLoginSignature(address: string, walletType: WalletType) {
   const ethereum = (window as any).ethereum;
   if (!ethereum) throw new Error('No wallet provider detected.');
   const { message, signedAt } = buildLoginMessage(address, walletType);
-  const loginSignature = await ethereum.request({ method: 'personal_sign', params: [message, address] });
+  const loginSignature = await ethereum.request({ method: 'personal_sign', params: [stringToHex(message), address] });
   return { loginSignature, loginMessage: message, loginSignedAt: signedAt };
 }
 
@@ -210,9 +222,41 @@ export function clearStoredWallet() {
 }
 
 export function getUserDisplayName() {
-  const raw = localStorage.getItem('osher_user_name') || '';
+  const profile = loadStoredAuthProfile();
+  const raw = profile.name || localStorage.getItem('osher_user_name') || '';
   const clean = raw.trim();
   return clean || 'there';
+}
+
+export function loadStoredAuthProfile(): AuthProfile {
+  try { return JSON.parse(localStorage.getItem('osher_auth_profile') || '{}'); } catch { return {}; }
+}
+
+export function storeAuthProfile(profile: AuthProfile) {
+  const clean = {
+    ...profile,
+    name: (profile.name || '').trim(),
+    contact: (profile.contact || '').trim(),
+  };
+  localStorage.setItem('osher_auth_profile', JSON.stringify(clean));
+  if (clean.name) localStorage.setItem('osher_user_name', clean.name);
+  return clean;
+}
+
+export async function startSupabaseOtp(profile: AuthProfile) {
+  return apiJson<{ success: boolean; demo?: boolean; message?: string }>('/api/auth/start', {
+    method: 'POST',
+    body: JSON.stringify({ ...profile, sessionId: SESSION_ID }),
+  });
+}
+
+export async function verifySupabaseOtp(profile: AuthProfile & { otp: string }) {
+  const result = await apiJson<{ success: boolean; demo?: boolean; user?: AuthProfile; message?: string }>('/api/auth/verify', {
+    method: 'POST',
+    body: JSON.stringify({ ...profile, sessionId: SESSION_ID }),
+  });
+  if (result.success) storeAuthProfile(result.user || profile);
+  return result;
 }
 
 export function shortAddress(address?: string) {
