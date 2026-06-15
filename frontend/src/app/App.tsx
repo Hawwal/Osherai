@@ -6,6 +6,7 @@ import { WalletScreen } from './components/WalletScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { GoalDetailsScreen } from './components/GoalDetailsScreen';
 import { GoalsScreen } from './components/GoalsScreen';
+import { ManualGoalFormScreen } from './components/ManualGoalFormScreen';
 import { AIChatScreen } from './components/AIChatScreen';
 import { TipsScreen } from './components/TipsScreen';
 import { ProfileScreen } from './components/ProfileScreen';
@@ -48,7 +49,7 @@ import {
 
 type Flow = 'splash' | 'onboarding' | 'auth' | 'wallet' | 'app';
 type Tab = 'home' | 'goals' | 'chat' | 'tips' | 'profile';
-type Overlay = null | 'goal-detail' | 'notifications' | 'recommendations' | 'yield' | 'social' | 'challenges';
+type Overlay = null | 'goal-detail' | 'manual-goal' | 'notifications' | 'recommendations' | 'yield' | 'social' | 'challenges';
 
 const EMPTY_DATA: AppData = {
   goals: [],
@@ -147,6 +148,21 @@ export default function App() {
     });
     if (response?.data?.goal || response?.data?.goals) await refreshData();
     return response?.message || response?.error || 'I could not process that yet.';
+  };
+
+  const createManualGoal = async (goalInput: { name: string; category: string; targetAmount: number; currency: string; deadline: string; startingDeposit?: number; roundUpEnabled: boolean }) => {
+    const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID), {
+      method: 'POST',
+      body: JSON.stringify(goalInput),
+    });
+    if (!result.success) throw new Error(result.error || 'Could not create this goal.');
+    await refreshData();
+    if (result.goal?.id) setSelectedGoalId(result.goal.id);
+    setOverlay('goal-detail');
+    const firstTopUp = Number(goalInput.startingDeposit || 0);
+    setNotice(firstTopUp > 0
+      ? `${result.goal?.name || 'Goal'} created. Create its vault, then top up ${firstTopUp.toFixed(2)} ${goalInput.currency}.`
+      : (result.message || `${result.goal?.name || 'Goal'} created.`));
   };
 
   const ensureVaultReady = () => {
@@ -344,6 +360,7 @@ export default function App() {
 
   const renderContent = () => {
     if (overlay === 'goal-detail') return <GoalDetailsScreen goal={selectedGoal} displayMode={displayMode} onBack={() => setOverlay(null)} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+    if (overlay === 'manual-goal') return <ManualGoalFormScreen onBack={() => setOverlay(null)} onAskAi={() => { setOverlay(null); setTab('chat'); }} onCreateGoal={createManualGoal} />;
     if (overlay === 'notifications') return <NotificationsScreen onBack={() => setOverlay(null)} />;
     if (overlay === 'recommendations') return <RecommendationsScreen recommendations={data.recommendations} onUpdate={updateRecommendation} />;
     if (overlay === 'yield') return <YieldScreen comingSoon />;
@@ -352,9 +369,9 @@ export default function App() {
 
     switch (tab) {
       case 'home':
-        return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setTab('chat')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
+        return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setOverlay('manual-goal')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
       case 'goals':
-        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateManualGoal={() => setOverlay('manual-goal')} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onAskAi={() => setTab('chat')} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
       case 'chat':
         return <AIChatScreen userName={userDisplayName} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':

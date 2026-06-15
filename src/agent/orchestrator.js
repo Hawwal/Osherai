@@ -607,6 +607,64 @@ async function getGoalsForSession(sessionId) {
   };
 }
 
+async function createManualGoal(sessionId, goalInput = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const amount = Number(goalInput.targetAmount || goalInput.amount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: "Target amount must be greater than 0" };
+  }
+
+  const deadline = goalInput.deadline ? new Date(goalInput.deadline) : null;
+  if (!deadline || Number.isNaN(deadline.getTime()) || deadline <= new Date()) {
+    return { success: false, error: "Choose a future deadline for this goal" };
+  }
+
+  const category = normalizeGoalCategory(goalInput.category);
+  const name = titleCase(goalInput.name || goalInput.purpose || category);
+  const currency = normalizeDisplayCurrency(goalInput.currency);
+  const goal = createSavingsGoalPlan({
+    amount,
+    currency,
+    deadlineText: deadline.toISOString(),
+    purpose: name,
+    originalMessage: `Manual goal: save ${amount} ${currency} for ${name} by ${deadline.toISOString().slice(0, 10)}`,
+  }, session.goals || []);
+
+  const savedDraft = {
+    ...goal,
+    name,
+    category,
+    categoryLabel: titleCase(category),
+    roundUpEnabled: Boolean(goalInput.roundUpEnabled),
+    originalMessage: goalInput.originalMessage || goal.originalMessage,
+  };
+
+  const savedGoal = await safePersist(
+    "save manual goal",
+    () => persistence.saveGoal(session.userId, savedDraft),
+    savedDraft
+  );
+  session.goals = upsertGoal(session.goals, savedGoal);
+
+  const message = summarizeGoalPlan(savedGoal);
+  await safePersist("log manual goal creation", () => persistence.logAgentAction(session.userId, {
+    goalId: savedGoal.id,
+    type: "goal_created",
+    amountUSDT: savedGoal.targetAmountUSDT,
+    message,
+  }));
+
+  return {
+    success: true,
+    message,
+    goal: savedGoal,
+    goals: session.goals,
+  };
+}
+
 async function markVaultGoalCreated(sessionId, goalId, vaultData = {}) {
   const session = activeSessions.get(sessionId) || createSession(sessionId, {});
   activeSessions.set(sessionId, session);
@@ -1280,10 +1338,16 @@ function titleCase(value) {
     .join(" ");
 }
 
+function normalizeGoalCategory(value) {
+  const key = String(value || "custom").trim().toLowerCase().replace(/\s+/g, "_");
+  return ["rent", "school_fees", "emergency_fund", "travel", "gadget", "custom"].includes(key) ? key : "custom";
+}
+
 module.exports = {
   handleUserMessage,
   handleTransactionComplete,
   getGoalsForSession,
+  createManualGoal,
   markVaultGoalCreated,
   recordVaultDeposit,
   recordVaultWithdrawal,

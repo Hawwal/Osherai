@@ -1,4 +1,4 @@
-import { Plus, TrendingUp, ShieldCheck } from 'lucide-react';
+import { MessageCircle, Plus, TrendingUp, ShieldCheck } from 'lucide-react';
 import { ContractsConfig, SavingsGoal, categoryEmoji, formatGoalAmount } from '../lib/osher';
 
 interface Props {
@@ -6,23 +6,33 @@ interface Props {
   displayMode: 'local' | 'usdt';
   contracts: ContractsConfig;
   onGoalClick: (goal?: SavingsGoal) => void;
+  onCreateManualGoal: () => void;
   onCreateVaultGoal: (goal: SavingsGoal) => void;
   onTopUp: (goal: SavingsGoal) => void;
   onWithdraw: (goal: SavingsGoal) => void;
   onDeleteGoal: (goal: SavingsGoal) => void;
+  onAskAi: () => void;
   onToggleRoundUp: (goal: SavingsGoal) => void;
   onLogSpend: (goal: SavingsGoal) => void;
 }
 
-export function GoalsScreen({ goals, displayMode, contracts, onGoalClick, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onToggleRoundUp, onLogSpend }: Props) {
+export function GoalsScreen({ goals, displayMode, contracts, onGoalClick, onCreateManualGoal, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onAskAi, onToggleRoundUp, onLogSpend }: Props) {
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-28" style={{ background: '#f5f5fb', scrollbarWidth: 'none' }}>
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
         <div><h1 className="font-display" style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0d0d14', letterSpacing: '-0.02em' }}>Savings Goals</h1><p style={{ fontSize: '0.82rem', color: '#9a9ab8', marginTop: 3 }}>Track every goal Osher is helping with.</p></div>
-        <button onClick={() => onGoalClick(undefined)} style={{ width: 42, height: 42, borderRadius: 14, background: '#171717', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(23,23,23,0.22)' }}><Plus size={19} color="#CCCCF7" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={onAskAi} aria-label="Ask Osher AI" style={{ width: 42, height: 42, borderRadius: 14, background: '#fff', color: '#3d3d6e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(204,204,247,0.8)', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}><MessageCircle size={19} /></button>
+          <button onClick={onCreateManualGoal} aria-label="Create goal" style={{ width: 42, height: 42, borderRadius: 14, background: '#171717', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(23,23,23,0.22)' }}><Plus size={19} color="#CCCCF7" /></button>
+        </div>
       </div>
 
       <div className="px-5 flex flex-col gap-4">
+        <button onClick={onAskAi} className="rounded-3xl p-4 flex items-center gap-3 text-left" style={{ background: '#fff', color: '#0d0d14', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
+          <span style={{ width: 42, height: 42, borderRadius: 14, background: '#171717', color: '#CCCCF7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><MessageCircle size={18} /></span>
+          <span className="flex-1"><span className="block font-display" style={{ fontWeight: 800, fontSize: '0.96rem' }}>Ask Osher AI to create a goal</span><span className="block" style={{ color: '#6b6b8a', fontSize: '0.78rem', lineHeight: 1.45, marginTop: 2 }}>Describe what you want, the amount, and your deadline.</span></span>
+        </button>
+
         {goals.length === 0 && (
           <div className="rounded-3xl p-5" style={{ background: '#fff', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
             <p className="font-display" style={{ fontWeight: 800, color: '#0d0d14', fontSize: '1.05rem' }}>No goals yet</p>

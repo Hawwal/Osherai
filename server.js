@@ -16,6 +16,7 @@ const config                  = require("./config/keys");
 const {
   handleUserMessage,
   getGoalsForSession,
+  createManualGoal,
   markVaultGoalCreated,
   recordVaultDeposit,
   recordVaultWithdrawal,
@@ -199,6 +200,15 @@ app.post("/api/message", async (req, res) => {
 app.get("/api/goals/:sessionId", async (req, res) => {
   try {
     res.json(await getGoalsForSession(req.params.sessionId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId", async (req, res) => {
+  try {
+    const result = await createManualGoal(req.params.sessionId, req.body || {});
+    res.status(result.success ? 200 : 400).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
