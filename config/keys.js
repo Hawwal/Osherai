@@ -5,10 +5,26 @@
  */
 
 const env = process.env;
+const fs = require("fs");
+const path = require("path");
+
+function loadSavingsVaultDeployment() {
+  const deploymentPath = path.join(__dirname, "..", "deployments", "celo-savings-vault.json");
+  try {
+    if (!fs.existsSync(deploymentPath)) return {};
+    return JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
+  } catch (err) {
+    console.warn("[Config] Could not load savings vault deployment:", err.message);
+    return {};
+  }
+}
+
+const savingsVaultDeployment = loadSavingsVaultDeployment();
+const NETWORK = env.NETWORK || "mainnet";
 
 module.exports = {
   // ── Network ──────────────────────────────────────────────────
-  NETWORK: env.NETWORK || "testnet",  // "testnet" or "mainnet"
+  NETWORK,  // "mainnet" or "testnet"
 
   // ── Server Config ────────────────────────────────────────────
   SERVER: {
@@ -44,9 +60,9 @@ module.exports = {
 
   // ── Savings Vault ────────────────────────────────────────────
   CONTRACTS: {
-    OSHER_SAVINGS_VAULT: env.OSHER_SAVINGS_VAULT || "",
-    VAULT_SAVINGS_TOKEN: env.VAULT_SAVINGS_TOKEN || "",
-    VAULT_AGENT_ADDRESS: env.VAULT_AGENT_ADDRESS || "",
+    OSHER_SAVINGS_VAULT: env.OSHER_SAVINGS_VAULT || savingsVaultDeployment.contractAddress || "",
+    VAULT_SAVINGS_TOKEN: env.VAULT_SAVINGS_TOKEN || savingsVaultDeployment.savingsToken || "",
+    VAULT_AGENT_ADDRESS: env.VAULT_AGENT_ADDRESS || savingsVaultDeployment.agent || "",
   },
 
   // ── Local Currency Display ──────────────────────────────────
@@ -63,7 +79,7 @@ module.exports = {
   // ── RPC URLs ─────────────────────────────────────────────────
   RPC: {
     CELO: env.RPC_CELO || 
-      (env.NETWORK === "mainnet"
+      (NETWORK === "mainnet"
         ? "https://forno.celo.org"
         : "https://alfajores-forno.celo-testnet.org"),
   },

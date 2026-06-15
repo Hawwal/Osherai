@@ -448,12 +448,71 @@ app.get("/api/rates", (_, res) => {
 });
 
 app.get("/api/contracts", (_, res) => {
+  const savingsVault = config.CONTRACTS?.OSHER_SAVINGS_VAULT || "";
+  const savingsToken = config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "";
   res.json({
     network: config.NETWORK || "mainnet",
-    savingsVault: config.CONTRACTS?.OSHER_SAVINGS_VAULT || "",
-    savingsToken: config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "",
+    chainId: config.NETWORK === "mainnet" ? 42220 : 44787,
+    savingsVault,
+    savingsToken,
     agent: config.CONTRACTS?.VAULT_AGENT_ADDRESS || "",
+    vaultConfigured: Boolean(savingsVault && savingsToken),
   });
+});
+
+app.get("/api/contracts/health", async (_, res) => {
+  const savingsVault = config.CONTRACTS?.OSHER_SAVINGS_VAULT || "";
+  const expectedToken = config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "";
+  if (!savingsVault) {
+    return res.status(503).json({ ok: false, error: "OSHER_SAVINGS_VAULT is not configured." });
+  }
+
+  try {
+    const { ethers } = require("ethers");
+    const provider = new ethers.JsonRpcProvider(config.RPC.CELO, getStaticNetwork("celo"), { staticNetwork: true });
+    try {
+      const code = await provider.getCode(savingsVault);
+      if (!code || code === "0x") {
+        return res.status(503).json({ ok: false, error: "No contract bytecode found at configured vault address.", savingsVault });
+      }
+
+      const abi = [
+        "function owner() view returns (address)",
+        "function agent() view returns (address)",
+        "function savingsToken() view returns (address)",
+        "function paused() view returns (bool)",
+        "function goalCount() view returns (uint256)",
+        "function totalSaved() view returns (uint256)",
+      ];
+      const vault = new ethers.Contract(savingsVault, abi, provider);
+      const [owner, agent, savingsToken, paused, goalCount, totalSaved] = await Promise.all([
+        vault.owner(),
+        vault.agent(),
+        vault.savingsToken(),
+        vault.paused(),
+        vault.goalCount(),
+        vault.totalSaved(),
+      ]);
+      res.json({
+        ok: true,
+        network: config.NETWORK || "mainnet",
+        chainId: getStaticNetwork("celo").chainId,
+        savingsVault,
+        owner,
+        agent,
+        savingsToken,
+        expectedToken,
+        tokenMatchesConfig: expectedToken ? String(savingsToken).toLowerCase() === String(expectedToken).toLowerCase() : true,
+        paused,
+        goalCount: goalCount.toString(),
+        totalSaved: totalSaved.toString(),
+      });
+    } finally {
+      provider.destroy();
+    }
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, savingsVault });
+  }
 });
 
 app.get("/logo.svg", (req, res) => {

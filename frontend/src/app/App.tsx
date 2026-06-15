@@ -195,7 +195,7 @@ export default function App() {
       const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
       const ethereum = (window as any).ethereum;
       setNotice('Approve USDT for the vault...');
-      await ethereum.request({
+      const approveHash = await ethereum.request({
         method: 'eth_sendTransaction',
         params: [{
           from: walletInfo.address,
@@ -204,6 +204,8 @@ export default function App() {
           data: encodeErc20Approve(data.contracts.savingsVault!, amountUnits),
         }],
       });
+      setNotice('Approval submitted. Waiting for confirmation...');
+      await pollTransaction(approveHash, 'celo');
       setNotice('Deposit approved USDT into your goal...');
       const depositHash = await ethereum.request({
         method: 'eth_sendTransaction',
