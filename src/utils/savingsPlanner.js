@@ -84,12 +84,13 @@ function summarizeGoalPlan(goal) {
   const targetDisplay = formatDisplayAmount(goal.targetAmountDisplay, goal.displayCurrency);
   const weeklyDisplay = formatDisplayAmount(goal.weeklyTargetDisplay, goal.displayCurrency);
   const deadline = formatDeadline(goal.deadline);
+  const goalLabel = /goal$/i.test(String(goal.name || "")) ? goal.name : `${goal.name} goal`;
 
   if (goal.displayCurrency === "USD") {
-    return `Got it. I created your ${goal.name} goal: save ${formatTokenAmount(goal.targetAmountUSDT)} USDT by ${deadline}.\n\nThat means about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT per week. You can switch the dashboard between USDT and local currency as we build the savings flow.`;
+    return `Got it. I created your ${goalLabel}: save ${formatTokenAmount(goal.targetAmountUSDT)} USDT by ${deadline}.\n\nThat means about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT per week. You can switch the dashboard between USDT and local currency as we build the savings flow.`;
   }
 
-  return `Got it. I created your ${goal.name} goal: save ${targetDisplay} by ${deadline}. That's about ${formatTokenAmount(goal.targetAmountUSDT)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT. The rate is a configurable estimate for now, so we'll plug in a live MiniPay-aligned source in a later step.`;
+  return `Got it. I created your ${goalLabel}: save ${targetDisplay} by ${deadline}. That's about ${formatTokenAmount(goal.targetAmountUSDT)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT. The rate is a configurable estimate for now, so we'll plug in a live MiniPay-aligned source in a later step.`;
 }
 
 function normalizeDisplayCurrency(currency) {
@@ -125,6 +126,20 @@ function parseDeadline(deadlineText, now = new Date()) {
   if (!deadlineText) return fallback;
 
   const text = String(deadlineText).trim().toLowerCase();
+  if (/\b(no deadline|no fixed deadline)\b/.test(text)) return fallback;
+  if (text === "today" || /\bdeadline\s*(?:is|:)?\s*today\b/.test(text)) {
+    const date = new Date(now);
+    date.setHours(23, 59, 59, 999);
+    if (date > now) return date;
+    date.setDate(date.getDate() + 1);
+    return date;
+  }
+  if (text === "tomorrow" || /\bdeadline\s*(?:is|:)?\s*tomorrow\b/.test(text)) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    date.setHours(23, 59, 59, 999);
+    return date;
+  }
   const relativeWeeks = text.match(/(\d+)\s+weeks?/);
   if (relativeWeeks) {
     const date = new Date(now);

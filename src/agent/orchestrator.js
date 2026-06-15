@@ -37,17 +37,25 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
   }
 
   await hydratePersistentSession(session, walletInfo);
+  await saveChatTurn(session, "user", userMessage);
 
   console.log(`[Orchestrator] Session ${sessionId} | Wallet: ${session.walletType || "none"} (${session.walletAddress ? session.walletAddress.slice(0, 8) + "..." : "not connected"}) | State: ${session.state} | Message: "${userMessage}"`);
 
   try {
+    let result;
     if (session.state === "awaiting_confirmation") {
-      return await handleConfirmation(session, userMessage);
+      result = await handleConfirmation(session, userMessage);
+      return await finishChatTurn(session, result);
     }
 
-    if (session.state === "awaiting_goal_details" || session.pendingGoalDraft) {
+    if (session.state === "awaiting_goal_details" || session.state === "awaiting_goal_confirmation" || session.pendingGoalDraft) {
       const pendingGoalResult = await handlePendingGoalDraft(session, userMessage);
-      if (pendingGoalResult) return pendingGoalResult;
+      if (pendingGoalResult) return await finishChatTurn(session, pendingGoalResult);
+    }
+
+    if (session.state === "awaiting_topup_amount" || session.pendingTopUp) {
+      const pendingTopUpResult = await handlePendingTopUp(session, userMessage);
+      if (pendingTopUpResult) return await finishChatTurn(session, pendingTopUpResult);
     }
 
     const intent = await parseIntent(userMessage, {
@@ -59,33 +67,41 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
 
     switch (intent.type) {
       case "transfer":
-        return await processCeloTransfer(session, intent);
+        result = await processCeloTransfer(session, intent);
+        break;
 
       case "alert":
-        return registerAlert(session, intent);
+        result = registerAlert(session, intent);
+        break;
 
       case "query":
-        return await handleQuery(session, intent);
+        result = await handleQuery(session, intent);
+        break;
 
       case "savings_goal_draft":
-        return await handleSavingsGoalDraft(session, intent);
+        result = await handleSavingsGoalDraft(session, intent);
+        break;
 
       case "clarification_needed":
-        return handleClarification(intent);
+        result = handleClarification(intent);
+        break;
 
       case "conversational":
       default:
-        return await handleConversationalMessage(session, intent.originalMessage || userMessage);
+        result = await handleConversationalMessage(session, intent.originalMessage || userMessage);
+        break;
     }
+    return await finishChatTurn(session, result);
   } catch (error) {
     console.error("[Orchestrator] Error:", error);
     logger.error("Orchestrator", "Message handling failed", { error: error.message, sessionId });
     session.state = "idle";
-    return {
+    const result = {
       message: "Something went wrong on my end. Please try again.",
       state: "error",
       error: error.message,
     };
+    return await finishChatTurn(session, result);
   }
 }
 
@@ -362,7 +378,13 @@ async function handleSavingsGoalDraft(session, intent) {
   }
 
   try {
-    return await saveGoalDraft(session, draft);
+    session.pendingGoalDraft = draft;
+    session.state = "awaiting_goal_confirmation";
+    return {
+      message: buildGoalConfirmationMessage(session, draft),
+      state: "awaiting_goal_confirmation",
+      data: { draftGoal: draft },
+    };
   } catch (error) {
     return {
       message: "I could not create that savings goal yet. Try something like: Save 150,000 naira for rent by December 1.",
@@ -376,6 +398,21 @@ async function handleSavingsGoalDraft(session, intent) {
 async function handlePendingGoalDraft(session, userMessage) {
   const msg = String(userMessage || "").trim();
   const lower = msg.toLowerCase();
+
+  if (session.state === "awaiting_goal_confirmation") {
+    if (isAffirmativeReply(lower)) {
+      return await saveGoalDraft(session, session.pendingGoalDraft);
+    }
+    if (isCancelReply(lower)) {
+      session.pendingGoalDraft = null;
+      session.state = "idle";
+      session.history.push({ role: "user", content: userMessage });
+      return {
+        message: "No problem. I paused that goal setup. You can start again whenever you're ready.",
+        state: "idle",
+      };
+    }
+  }
 
   if (isCancelReply(lower)) {
     session.pendingGoalDraft = null;
@@ -408,7 +445,7 @@ async function handlePendingGoalDraft(session, userMessage) {
   const merged = mergeGoalDraftFromMessage(draft, msg);
   const missing = getMissingGoalFields(merged);
 
-  if (isAffirmativeReply(lower) && merged.amount) {
+  if (isAffirmativeReply(lower) && merged.amount && missing.length) {
     const completed = {
       ...merged,
       purpose: merged.purpose && merged.purpose !== "custom" ? merged.purpose : "USDT Savings",
@@ -428,7 +465,13 @@ async function handlePendingGoalDraft(session, userMessage) {
     };
   }
 
-  return await saveGoalDraft(session, merged);
+  session.pendingGoalDraft = merged;
+  session.state = "awaiting_goal_confirmation";
+  return {
+    message: buildGoalConfirmationMessage(session, merged),
+    state: "awaiting_goal_confirmation",
+    data: { draftGoal: merged },
+  };
 }
 
 async function saveGoalDraft(session, draft) {
@@ -444,9 +487,11 @@ async function saveGoalDraft(session, draft) {
 
   let message = summarizeGoalPlan(savedGoal);
   if (draft.wantsImmediateTopUp) {
+    session.pendingTopUp = { goalId: savedGoal.id };
+    session.state = "awaiting_topup_amount";
     message += session.walletAddress
-      ? `\n\nYou're connected with ${formatWalletType(session.walletType)}. Next, open this goal, create its vault, then tap Top up to pay into it now.`
-      : "\n\nNext, connect MiniPay or MetaMask, create the goal vault, then tap Top up to pay into it now.";
+      ? `\n\nYou're connected with ${formatWalletType(session.walletType)}. How much would you like to top up now in USDT?`
+      : "\n\nNext, connect MiniPay or MetaMask. After that, tell me how much you want to top up.";
   } else {
     message += "\n\nYou can create the goal vault and top it up whenever you're ready.";
   }
@@ -464,11 +509,74 @@ async function saveGoalDraft(session, draft) {
 
   return {
     message,
-    state: "idle",
+    state: session.state,
     data: {
       goal: savedGoal,
       goals: session.goals,
       displayMode: savedGoal.displayCurrency === "USD" ? "usdt" : "local",
+      nextState: session.pendingTopUp ? "awaiting_topup_amount" : "idle",
+    },
+  };
+}
+
+async function handlePendingTopUp(session, userMessage) {
+  const msg = String(userMessage || "").trim();
+  const lower = msg.toLowerCase();
+
+  if (isCancelReply(lower)) {
+    session.pendingTopUp = null;
+    session.state = "idle";
+    session.history.push({ role: "user", content: userMessage });
+    return {
+      message: "No problem. I paused the top-up. Your goal is still saved.",
+      state: "idle",
+    };
+  }
+
+  const goal = findSessionGoal(session, session.pendingTopUp?.goalId) || (session.goals || [])[0];
+  if (!goal) {
+    session.pendingTopUp = null;
+    session.state = "idle";
+    return {
+      message: "Create a savings goal first, then I can help you top it up.",
+      state: "idle",
+    };
+  }
+
+  if (isReadyToTopUp(lower) && !extractDraftAmount(msg)) {
+    session.pendingTopUp = { goalId: goal.id };
+    session.state = "awaiting_topup_amount";
+    return {
+      message: `Great. How much would you like to top up for ${goal.name} in USDT?`,
+      state: "awaiting_topup_amount",
+      data: { goalId: goal.id },
+    };
+  }
+
+  const amountUSDT = extractDraftAmount(msg);
+  if (!amountUSDT || amountUSDT <= 0) {
+    session.pendingTopUp = { goalId: goal.id };
+    session.state = "awaiting_topup_amount";
+    return {
+      message: `How much would you like to top up for ${goal.name}? Example: 0.001 USDT.`,
+      state: "awaiting_topup_amount",
+      data: { goalId: goal.id },
+    };
+  }
+
+  session.pendingTopUp = null;
+  session.state = "idle";
+  return {
+    message: goal.vaultGoalCreated
+      ? `Great. I'll prepare a ${formatTokenAmount(amountUSDT)} USDT top-up for ${goal.name}. Approve it in ${formatWalletType(session.walletType)} when prompted.`
+      : `${goal.name} needs an on-chain vault before deposits. Open the goal, tap Create vault, then top up ${formatTokenAmount(amountUSDT)} USDT.`,
+    state: "idle",
+    data: {
+      action: goal.vaultGoalCreated ? "top_up_goal" : "open_goal_setup",
+      goalId: goal.id,
+      goal,
+      goals: session.goals || [],
+      amountUSDT,
     },
   };
 }
@@ -546,6 +654,17 @@ async function handleConversationalMessage(session, userMessage) {
     return {
       message: "I'm good, and ready to help you save. Want to create a goal, check your balance, or top up an existing goal?",
       state: "idle",
+    };
+  }
+
+  if (isReadyToTopUp(lower) && (session.goals || []).length) {
+    const goal = (session.goals || [])[0];
+    session.pendingTopUp = { goalId: goal.id };
+    session.state = "awaiting_topup_amount";
+    return {
+      message: `Great. How much would you like to top up for ${goal.name} in USDT?`,
+      state: "awaiting_topup_amount",
+      data: { goalId: goal.id },
     };
   }
 
@@ -676,6 +795,8 @@ function createSession(sessionId, walletInfo) {
     loginSignature: walletInfo.loginSignature || null,
     history: [],
     pendingTransaction: null,
+    pendingGoalDraft: null,
+    pendingTopUp: null,
     alerts: [],
     goals: [],
     createdAt: new Date().toISOString(),
@@ -694,8 +815,26 @@ async function hydratePersistentSession(session, walletInfo = {}) {
   if (!session.persistenceHydrated) {
     const goals = await safePersist("load goals", () => persistence.listGoals(session.userId), []);
     session.goals = goals.length ? goals : (session.goals || []);
+    const chatMessages = await safePersist("load chat history", () => persistence.listChatMessages(session.userId, 30), []);
+    if (chatMessages.length) {
+      session.history = chatMessages.map(message => ({
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: message.content || message.text || "",
+      })).filter(message => message.content);
+    }
     session.persistenceHydrated = true;
   }
+}
+
+async function getChatMessagesForSession(sessionId, limit = 80) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+  const messages = await safePersist("load chat messages", () => persistence.listChatMessages(session.userId, limit), []);
+  return {
+    messages,
+    persistence: persistence.getPersistenceStatus(),
+  };
 }
 
 async function getGoalsForSession(sessionId) {
@@ -1264,6 +1403,27 @@ async function safePersist(label, operation, fallback = null) {
   }
 }
 
+async function saveChatTurn(session, role, content, metadata = {}) {
+  const text = String(content || "").trim();
+  if (!text) return null;
+  return await safePersist(
+    "save chat message",
+    () => persistence.saveChatMessage(session.userId, { role, content: text, metadata }),
+    null
+  );
+}
+
+async function finishChatTurn(session, result) {
+  if (result?.message) {
+    await saveChatTurn(session, "assistant", result.message, {
+      state: result.state || session.state || "idle",
+      action: result.data?.action,
+      goalId: result.data?.goalId || result.data?.goal?.id,
+    });
+  }
+  return result;
+}
+
 function upsertGoal(goals = [], goal) {
   const index = goals.findIndex(item => item.id === goal.id);
   if (index === -1) return [goal, ...goals];
@@ -1434,6 +1594,7 @@ function normalizeGoalDraft(intent = {}) {
     amount: intent.amount ? Number(intent.amount) : null,
     currency: normalizeDisplayCurrency(intent.currency || "USD"),
     deadlineText: intent.deadlineText || null,
+    noDeadline: Boolean(intent.noDeadline),
     purpose: normalizeDraftPurpose(intent.purpose),
     wantsImmediateTopUp: Boolean(intent.wantsImmediateTopUp || /(?:pay|top\s*up|deposit|fund)\s*(?:it\s*)?(?:now|today|immediately|right now)/i.test(intent.originalMessage || "")),
     originalMessage: intent.originalMessage || "",
@@ -1442,15 +1603,19 @@ function normalizeGoalDraft(intent = {}) {
 
 function mergeGoalDraftFromMessage(draft, message) {
   const lower = String(message || "").toLowerCase();
-  const amount = extractDraftAmount(message);
   const deadlineText = extractDraftDeadline(message);
-  const purpose = extractDraftPurpose(message);
+  const noDeadlineReply = isNoDeadlineReply(lower);
+  const noDeadline = deadlineText ? false : (draft.noDeadline || noDeadlineReply);
+  const looksLikeDateOnly = Boolean(deadlineText) && !/\b(save|saving|savings|usdt|usd|naira|ngn|₦|ghs|cedi|amount|top\s*up|deposit|call|called|name|label)\b/i.test(message);
+  const amount = looksLikeDateOnly && draft.amount ? null : extractDraftAmount(message);
+  const purpose = noDeadlineReply || looksLikeDateOnly ? null : extractDraftPurpose(message);
 
   return normalizeGoalDraft({
     ...draft,
     amount: amount || draft.amount,
     currency: extractDraftCurrency(lower) || draft.currency,
-    deadlineText: deadlineText || draft.deadlineText,
+    deadlineText: noDeadline ? null : (deadlineText || draft.deadlineText),
+    noDeadline,
     purpose: purpose || draft.purpose,
     wantsImmediateTopUp: draft.wantsImmediateTopUp || /(?:pay|top\s*up|deposit|fund)\s*(?:it\s*)?(?:now|today|immediately|right now)/i.test(message),
     originalMessage: [draft.originalMessage, message].filter(Boolean).join(" | "),
@@ -1461,7 +1626,7 @@ function getMissingGoalFields(draft = {}) {
   const missing = [];
   if (!draft.amount) missing.push("amount");
   if (!draft.purpose || draft.purpose === "custom") missing.push("purpose");
-  if (!draft.deadlineText) missing.push("deadline");
+  if (!draft.deadlineText && !draft.noDeadline) missing.push("deadline");
   return missing;
 }
 
@@ -1487,10 +1652,20 @@ function buildGoalDraftPrompt(session, draft = {}, missing = [], options = {}) {
   }
 
   if (missing.includes("deadline")) {
-    return `Got it. When should this goal end? Example: by next month, in 4 weeks, or by December 1.`;
+    return `Got it. When should this goal end? You can say today, tomorrow, June 20, or "no deadline".`;
   }
 
   return "Got it. Reply YES and I'll create the goal, or add any detail you want to change.";
+}
+
+function buildGoalConfirmationMessage(session, draft = {}) {
+  const goalName = draft.purpose && draft.purpose !== "custom" ? titleCase(draft.purpose) : "Savings Goal";
+  const amount = `${formatTokenAmount(draft.amount)} ${draft.currency === "USD" ? "USDT" : draft.currency}`;
+  const deadline = draft.noDeadline ? "no fixed deadline" : draft.deadlineText;
+  const walletLine = session.walletAddress
+    ? `Wallet: ${formatWalletType(session.walletType)} is connected.`
+    : "Wallet: connect MiniPay or MetaMask when you're ready to top up.";
+  return `Here is the goal I understood:\n\nGoal: ${goalName}\nAmount: ${amount}\nDeadline: ${deadline}\n\n${walletLine}\n\nReply YES to create it, or tell me what to change.`;
 }
 
 function normalizeDraftPurpose(value) {
@@ -1514,6 +1689,11 @@ function extractDraftCurrency(message) {
 
 function extractDraftDeadline(message) {
   const text = String(message || "").trim();
+  if (isNoDeadlineReply(text)) return null;
+  if (/\btoday\b/i.test(text)) return "today";
+  if (/\btomorrow\b/i.test(text)) return "tomorrow";
+  const deadlineIs = text.match(/\bdead\s*line\s*(?:is|:)?\s+(.+)$/i) || text.match(/\bdeadline\s*(?:is|:)?\s+(.+)$/i);
+  if (deadlineIs) return deadlineIs[1].trim();
   const explicit = text.match(/\b(?:by|before|till|until)\s+(.+)$/i);
   if (explicit) return explicit[1].trim();
 
@@ -1575,10 +1755,27 @@ function isSmallTalk(value) {
   return /^(hi|hello|hey|how are you|how far|what'?s up|whats up|good morning|good afternoon|good evening)[\s?!.,]*$/i.test(String(value || "").trim());
 }
 
+function isNoDeadlineReply(value) {
+  return /\b(no deadline|no need for (?:the )?dead\s*line|no need for (?:a )?deadline|without deadline|no fixed deadline)\b/i.test(String(value || ""));
+}
+
+function isReadyToTopUp(value) {
+  return /\b(i'?m ready|ready|top\s*up|deposit|pay now|fund it|add money|save now)\b/i.test(String(value || ""));
+}
+
 function formatWalletType(walletType) {
   if (walletType === "minipay") return "MiniPay";
   if (walletType === "metamask") return "MetaMask";
   return "your wallet";
+}
+
+function formatTokenAmount(value) {
+  const amount = Number(value || 0);
+  const small = amount > 0 && amount < 0.01;
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: small ? 0 : 2,
+    maximumFractionDigits: small ? 6 : 2,
+  });
 }
 
 function roundMoney(value) {
@@ -1602,6 +1799,7 @@ function normalizeGoalCategory(value) {
 module.exports = {
   handleUserMessage,
   handleTransactionComplete,
+  getChatMessagesForSession,
   getGoalsForSession,
   createManualGoal,
   markVaultGoalCreated,

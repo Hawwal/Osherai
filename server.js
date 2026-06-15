@@ -15,6 +15,7 @@ const fetch      = require("node-fetch");
 const config                  = require("./config/keys");
 const {
   handleUserMessage,
+  getChatMessagesForSession,
   getGoalsForSession,
   createManualGoal,
   markVaultGoalCreated,
@@ -192,6 +193,14 @@ app.post("/api/message", async (req, res) => {
   if (!sessionId || !message) return res.status(400).json({ error: "sessionId and message are required" });
   try {
     res.json(await handleUserMessage(sessionId, message, walletInfo || {}));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/chat/:sessionId", async (req, res) => {
+  try {
+    res.json(await getChatMessagesForSession(req.params.sessionId, Number(req.query.limit || 80)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

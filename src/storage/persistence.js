@@ -10,6 +10,7 @@ const memory = {
   tipsByUser: new Map(),
   recommendationsByUser: new Map(),
   nudgesByUser: new Map(),
+  chatMessagesByUser: new Map(),
 };
 
 function isSupabaseConfigured() {
@@ -373,6 +374,50 @@ async function listNudges(userId, limit = 20) {
   return (records || []).map(recordToNudge);
 }
 
+async function saveChatMessage(userId, message = {}) {
+  const record = {
+    id: message.id || `chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    user_id: userId,
+    role: message.role === "assistant" ? "assistant" : "user",
+    content: String(message.content || message.text || ""),
+    metadata: message.metadata || {},
+    created_at: message.createdAt || message.created_at || new Date().toISOString(),
+  };
+
+  if (!record.content.trim()) return recordToChatMessage(record);
+
+  if (!isSupabaseConfigured()) {
+    const messages = memory.chatMessagesByUser.get(userId) || [];
+    messages.push(record);
+    memory.chatMessagesByUser.set(userId, messages.slice(-200));
+    return recordToChatMessage(record);
+  }
+
+  const records = await supabaseRequest("/chat_messages", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: [record],
+  });
+  return recordToChatMessage(records?.[0] || record);
+}
+
+async function listChatMessages(userId, limit = 80) {
+  if (!isSupabaseConfigured()) {
+    return (memory.chatMessagesByUser.get(userId) || [])
+      .slice(-limit)
+      .map(recordToChatMessage);
+  }
+
+  const records = await supabaseRequest("/chat_messages", {
+    query: {
+      user_id: `eq.${userId}`,
+      order: "created_at.desc",
+      limit: String(limit),
+    },
+  });
+  return (records || []).reverse().map(recordToChatMessage);
+}
+
 async function supabaseRequest(path, options = {}) {
   const url = new URL(`${config.SUPABASE.URL.replace(/\/$/, "")}/rest/v1${path}`);
   for (const [key, value] of Object.entries(options.query || {})) {
@@ -517,6 +562,17 @@ function recordToNudge(record) {
   };
 }
 
+function recordToChatMessage(record) {
+  return {
+    id: record.id,
+    role: record.role,
+    content: record.content,
+    text: record.content,
+    metadata: record.metadata || {},
+    createdAt: record.created_at,
+  };
+}
+
 function upsertById(records, record) {
   const index = records.findIndex(item => item.id === record.id);
   if (index === -1) return [record, ...records];
@@ -547,6 +603,8 @@ module.exports = {
   updateRecommendationStatus,
   saveNudge,
   listNudges,
+  saveChatMessage,
+  listChatMessages,
   resolveUserId,
   getPersistenceStatus,
   isSupabaseConfigured,

@@ -86,6 +86,15 @@ create table if not exists public.nudges (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.chat_messages (
+  id text primary key,
+  user_id text not null references public.users(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.savings_tips (
   id text primary key,
   user_id text not null references public.users(id) on delete cascade,
@@ -112,5 +121,6 @@ create index if not exists idx_goals_user_id_status on public.goals(user_id, sta
 create index if not exists idx_transactions_user_id_created_at on public.transactions(user_id, created_at desc);
 create index if not exists idx_agent_logs_user_id_created_at on public.agent_logs(user_id, created_at desc);
 create index if not exists idx_nudges_user_id_scheduled_for on public.nudges(user_id, scheduled_for);
+create index if not exists idx_chat_messages_user_id_created_at on public.chat_messages(user_id, created_at desc);
 create index if not exists idx_savings_tips_user_id_created_at on public.savings_tips(user_id, created_at desc);
 create index if not exists idx_recommendations_user_id_status on public.recommendations(user_id, status);

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import osherLogo from '../../imports/Osher_wallet_logo.png';
+import { ChatMessage } from '../lib/osher';
 
 const PROMPTS = [
   { label: 'Create Goal', key: 'I want to create a savings goal.' },
@@ -11,16 +12,31 @@ const PROMPTS = [
 ];
 
 interface Message { role: 'user' | 'ai'; text: string; ts: string; }
-interface Props { userName?: string; onSendMessage: (message: string) => Promise<string>; onDataChanged: () => Promise<void> | void; }
+interface Props { userName?: string; initialMessages?: ChatMessage[]; onSendMessage: (message: string) => Promise<string>; onDataChanged: () => Promise<void> | void; }
 
 function now() { return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); }
 function greetingName(name?: string) { return (name || '').trim() || 'there'; }
+function greetingMessage(name?: string): Message { return { role: 'ai', text: `Hi ${greetingName(name)}! I'm your Osher AI savings coach. Tell me your savings goal and I'll create a personalised plan just for you.`, ts: now() }; }
+function mapInitialMessages(messages?: ChatMessage[], userName?: string): Message[] {
+  const mapped = (messages || [])
+    .map(item => ({
+      role: item.role === 'user' ? 'user' as const : 'ai' as const,
+      text: item.content || item.text || '',
+      ts: new Date(item.createdAt || item.created_at || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    }))
+    .filter(item => item.text.trim());
+  return mapped.length ? mapped : [greetingMessage(userName)];
+}
 
-export function AIChatScreen({ userName, onSendMessage, onDataChanged }: Props) {
-  const [messages, setMessages] = useState<Message[]>([{ role: 'ai', text: `Hi ${greetingName(userName)}! I'm your Osher AI savings coach. Tell me your savings goal and I'll create a personalised plan just for you.`, ts: now() }]);
+export function AIChatScreen({ userName, initialMessages, onSendMessage, onDataChanged }: Props) {
+  const [messages, setMessages] = useState<Message[]>(() => mapInitialMessages(initialMessages, userName));
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialMessages?.length) setMessages(mapInitialMessages(initialMessages, userName));
+  }, [initialMessages, userName]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, typing]);
 

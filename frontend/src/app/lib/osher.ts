@@ -54,6 +54,15 @@ export type ActivityItem = {
   createdAt?: string;
 };
 
+export type ChatMessage = {
+  id?: string;
+  role: 'user' | 'assistant' | 'ai';
+  content?: string;
+  text?: string;
+  createdAt?: string;
+  created_at?: string;
+};
+
 export type Tip = { id?: string; category?: string; generatedText?: string; generated_text?: string; created_at?: string; };
 
 export type Recommendation = {
@@ -81,6 +90,7 @@ export type AppData = {
   goals: SavingsGoal[];
   dashboard: DashboardStats;
   activity: ActivityItem[];
+  chatMessages: ChatMessage[];
   tips: Tip[];
   recommendations: Recommendation[];
   walletInfo: WalletInfo;
@@ -135,19 +145,21 @@ export async function loadNetworkConfig(): Promise<NetworkConfig> {
 }
 
 export async function loadAppData(walletInfo: WalletInfo, displayMode: 'local' | 'usdt'): Promise<AppData> {
-  const [goalsResponse, dashboard, activityResponse, tipsResponse, recommendationsResponse, contracts] = await Promise.all([
+  const [goalsResponse, dashboard, activityResponse, chatResponse, tipsResponse, recommendationsResponse, contracts] = await Promise.all([
     apiJson<any>(`/api/goals/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
     apiJson<DashboardStats>(`/api/dashboard/${encodeURIComponent(SESSION_ID)}`).catch(() => ({})),
     apiJson<any>(`/api/activity/${encodeURIComponent(SESSION_ID)}?limit=20`).catch(() => []),
+    apiJson<any>(`/api/chat/${encodeURIComponent(SESSION_ID)}?limit=80`).catch(() => []),
     apiJson<any>(`/api/tips/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
     apiJson<any>(`/api/recommendations/${encodeURIComponent(SESSION_ID)}`).catch(() => []),
     apiJson<ContractsConfig>('/api/contracts').catch(() => ({})),
   ]);
   const goals = Array.isArray(goalsResponse) ? goalsResponse : (goalsResponse.goals || []);
   const activity = Array.isArray(activityResponse) ? activityResponse : (activityResponse.activity || activityResponse.logs || []);
+  const chatMessages = Array.isArray(chatResponse) ? chatResponse : (chatResponse.messages || []);
   const tips = Array.isArray(tipsResponse) ? tipsResponse : (tipsResponse.tips || []);
   const recommendations = Array.isArray(recommendationsResponse) ? recommendationsResponse : (recommendationsResponse.recommendations || []);
-  return { goals, dashboard, activity, tips, recommendations, walletInfo, displayMode, contracts };
+  return { goals, dashboard, activity, chatMessages, tips, recommendations, walletInfo, displayMode, contracts };
 }
 
 export async function ensureCeloNetwork(networkConfig: NetworkConfig) {

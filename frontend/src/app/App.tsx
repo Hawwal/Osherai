@@ -55,6 +55,7 @@ const EMPTY_DATA: AppData = {
   goals: [],
   dashboard: {},
   activity: [],
+  chatMessages: [],
   tips: [],
   recommendations: [],
   walletInfo: {},
@@ -147,6 +148,20 @@ export default function App() {
       body: JSON.stringify({ sessionId: SESSION_ID, message, walletInfo }),
     });
     if (response?.data?.goal || response?.data?.goals) await refreshData();
+    if (response?.data?.action === 'top_up_goal' && response.data.goalId) {
+      const responseGoals = response.data.goals || (response.data.goal ? [response.data.goal] : []);
+      const goal = responseGoals.find((item: SavingsGoal) => item.id === response.data.goalId) || data.goals.find(item => item.id === response.data.goalId) || response.data.goal;
+      if (goal) await topUpGoal(goal, Number(response.data.amountUSDT || 0));
+    }
+    if (response?.data?.action === 'open_goal_setup' && response.data.goalId) {
+      const responseGoals = response.data.goals || (response.data.goal ? [response.data.goal] : []);
+      const goal = responseGoals.find((item: SavingsGoal) => item.id === response.data.goalId) || data.goals.find(item => item.id === response.data.goalId);
+      if (goal) {
+        setSelectedGoalId(goal.id);
+        setOverlay('goal-detail');
+        setNotice('Create this goal vault first, then tap Top up.');
+      }
+    }
     return response?.message || response?.error || 'I could not process that yet.';
   };
 
@@ -204,9 +219,13 @@ export default function App() {
   const topUpGoal = async (goal: SavingsGoal, presetAmount?: number) => {
     try {
       ensureVaultReady();
-      if (!goal.vaultGoalCreated) throw new Error('Create this goal on-chain first, then top it up.');
+      if (!goal.vaultGoalCreated) {
+        setSelectedGoalId(goal.id);
+        setOverlay('goal-detail');
+        throw new Error('Create this goal vault first, then top it up.');
+      }
       const suggested = presetAmount || goal.weeklyTargetUSDT || 1;
-      const value = window.prompt('Amount in USDT', Number(suggested).toFixed(2));
+      const value = presetAmount ? String(presetAmount) : window.prompt('Amount in USDT', Number(suggested).toFixed(2));
       if (!value) return;
       const amount = Number(value);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid USDT amount.');
@@ -353,6 +372,16 @@ export default function App() {
     setOverlay('goal-detail');
   };
 
+  const handleHomeDeposit = () => {
+    const goal = data.goals[0];
+    if (!goal) {
+      setNotice('Create a savings goal first, then you can deposit into it.');
+      setOverlay('manual-goal');
+      return;
+    }
+    topUpGoal(goal);
+  };
+
   const handleTabChange = (nextTab: Tab) => {
     setOverlay(null);
     setTab(nextTab);
@@ -369,11 +398,11 @@ export default function App() {
 
     switch (tab) {
       case 'home':
-        return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setOverlay('manual-goal')} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
+        return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setOverlay('manual-goal')} onDeposit={handleHomeDeposit} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
       case 'goals':
         return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateManualGoal={() => setOverlay('manual-goal')} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onAskAi={() => setTab('chat')} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
       case 'chat':
-        return <AIChatScreen userName={userDisplayName} onSendMessage={sendMessage} onDataChanged={refreshData} />;
+        return <AIChatScreen userName={userDisplayName} initialMessages={data.chatMessages} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':
         return <TipsScreen tips={data.tips} onExplainTip={sendMessage} />;
       case 'profile':

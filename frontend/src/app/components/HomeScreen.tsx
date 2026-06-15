@@ -13,11 +13,12 @@ interface Props {
   onChatClick: () => void;
   onNotifClick: () => void;
   onAddGoal: () => void;
+  onDeposit: () => void;
   onTopUp: (goal: SavingsGoal) => void;
   onWeeklyNudge: () => void;
 }
 
-export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, onGoalClick, onChatClick, onNotifClick, onAddGoal, onTopUp, onWeeklyNudge }: Props) {
+export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, onGoalClick, onChatClick, onNotifClick, onAddGoal, onDeposit, onTopUp, onWeeklyNudge }: Props) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const goals = data.goals.slice(0, 2);
   const activeGoals = Number(data.dashboard.activeGoalCount || data.goals.filter(goal => goal.status === 'active').length);
@@ -64,7 +65,7 @@ export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, o
 
       <div className="px-4 mb-5"><div className="grid grid-cols-4 gap-2.5">
         {[
-          { icon: <ArrowDownToLine size={19} />, label: 'Deposit', bg: '#e8f5ec', ic: '#2d7a47', action: () => data.goals[0] && onTopUp(data.goals[0]) },
+          { icon: <ArrowDownToLine size={19} />, label: 'Deposit', bg: '#e8f5ec', ic: '#2d7a47', action: onDeposit },
           { icon: <ArrowUpFromLine size={19} />, label: 'Withdraw', bg: '#fff3f3', ic: '#c0392b', action: () => onGoalClick(data.goals[0]) },
           { icon: <Plus size={19} />, label: 'Add Goal', bg: '#f0f0f9', ic: '#171717', action: onAddGoal },
           { icon: <MessageCircle size={19} />, label: 'AI Chat', bg: '#171717', ic: '#CCCCF7', action: onChatClick },
