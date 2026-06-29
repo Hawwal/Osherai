@@ -116,6 +116,52 @@ create table if not exists public.recommendations (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.developer_apps (
+  id text primary key,
+  name text not null,
+  contact_email text,
+  status text not null default 'active' check (status in ('active', 'paused', 'revoked')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.developer_api_keys (
+  id text primary key,
+  app_id text references public.developer_apps(id) on delete cascade,
+  name text not null,
+  key_hash text not null unique,
+  key_prefix text not null,
+  environment text not null default 'production' check (environment in ('test', 'production')),
+  status text not null default 'active' check (status in ('active', 'paused', 'revoked')),
+  last_used_at timestamptz,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+
+create table if not exists public.infrastructure_usage_events (
+  id text primary key,
+  api_key_id text references public.developer_api_keys(id) on delete set null,
+  key_prefix text,
+  method text not null,
+  path text not null,
+  status_code integer not null,
+  duration_ms integer,
+  ip_address text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.developer_access_requests (
+  id text primary key,
+  name text not null,
+  email text not null,
+  project text not null,
+  use_case text,
+  website text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'contacted')),
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_wallets_user_id on public.wallets(user_id);
 create index if not exists idx_goals_user_id_status on public.goals(user_id, status);
 create index if not exists idx_transactions_user_id_created_at on public.transactions(user_id, created_at desc);
@@ -124,3 +170,7 @@ create index if not exists idx_nudges_user_id_scheduled_for on public.nudges(use
 create index if not exists idx_chat_messages_user_id_created_at on public.chat_messages(user_id, created_at desc);
 create index if not exists idx_savings_tips_user_id_created_at on public.savings_tips(user_id, created_at desc);
 create index if not exists idx_recommendations_user_id_status on public.recommendations(user_id, status);
+create index if not exists idx_developer_api_keys_hash_status on public.developer_api_keys(key_hash, status);
+create index if not exists idx_infra_usage_api_key_created_at on public.infrastructure_usage_events(api_key_id, created_at desc);
+create index if not exists idx_infra_usage_path_created_at on public.infrastructure_usage_events(path, created_at desc);
+create index if not exists idx_developer_access_requests_status_created_at on public.developer_access_requests(status, created_at desc);

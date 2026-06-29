@@ -16,7 +16,9 @@
     "fees:withdraw": "hardhat run scripts/withdraw-fees.js --network celo",
     "build:frontend": "vite build && node scripts/fix-frontend-html.js",
     "build": "npm run build:frontend && hardhat compile",
-    "start:server": "node server.js"
+    "start:server": "node server.js",
+    "infra:key": "node scripts/generate-infra-api-key.js",
+    "infra:example": "node sdk/osher-js/examples/node-quickstart.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",

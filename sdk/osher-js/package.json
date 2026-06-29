@@ -1,0 +1,23 @@
+{
+  "name": "@osher-ai/sdk",
+  "version": "0.1.0",
+  "description": "JavaScript client for Osher Infrastructure savings APIs.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "types": "./index.d.ts"
+    }
+  },
+  "license": "ISC",
+  "keywords": [
+    "osher",
+    "celo",
+    "minipay",
+    "stablecoin",
+    "savings",
+    "agent"
+  ]
+}

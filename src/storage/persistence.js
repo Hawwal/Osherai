@@ -11,6 +11,9 @@ const memory = {
   recommendationsByUser: new Map(),
   nudgesByUser: new Map(),
   chatMessagesByUser: new Map(),
+  developerApiKeysByHash: new Map(),
+  infrastructureUsageEvents: [],
+  developerAccessRequests: [],
 };
 
 function isSupabaseConfigured() {
@@ -418,6 +421,78 @@ async function listChatMessages(userId, limit = 80) {
   return (records || []).reverse().map(recordToChatMessage);
 }
 
+async function findDeveloperApiKeyByHash(keyHash) {
+  if (!keyHash) return null;
+
+  if (!isSupabaseConfigured()) {
+    const record = memory.developerApiKeysByHash.get(keyHash);
+    return record && record.status === "active" ? recordToDeveloperApiKey(record) : null;
+  }
+
+  const records = await supabaseRequest("/developer_api_keys", {
+    query: {
+      key_hash: `eq.${keyHash}`,
+      status: "eq.active",
+      limit: "1",
+    },
+  });
+  return records?.[0] ? recordToDeveloperApiKey(records[0]) : null;
+}
+
+async function recordInfrastructureUsage(event = {}) {
+  const record = {
+    id: event.id || `infra_usage_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    api_key_id: event.apiKeyId || null,
+    key_prefix: event.keyPrefix || null,
+    method: event.method || "GET",
+    path: event.path || "",
+    status_code: Number(event.statusCode || 0),
+    duration_ms: numberOrNull(event.durationMs),
+    ip_address: event.ipAddress || null,
+    user_agent: event.userAgent || null,
+    created_at: event.createdAt || new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    memory.infrastructureUsageEvents.unshift(record);
+    memory.infrastructureUsageEvents = memory.infrastructureUsageEvents.slice(0, 1000);
+    return record;
+  }
+
+  const records = await supabaseRequest("/infrastructure_usage_events", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: [record],
+  });
+  return records?.[0] || record;
+}
+
+async function saveDeveloperAccessRequest(request = {}) {
+  const record = {
+    id: request.id || `devreq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: request.name || "",
+    email: request.email || "",
+    project: request.project || "",
+    use_case: request.useCase || request.use_case || "",
+    website: request.website || "",
+    status: request.status || "pending",
+    created_at: request.createdAt || new Date().toISOString(),
+  };
+
+  if (!isSupabaseConfigured()) {
+    memory.developerAccessRequests.unshift(record);
+    memory.developerAccessRequests = memory.developerAccessRequests.slice(0, 500);
+    return recordToDeveloperAccessRequest(record);
+  }
+
+  const records = await supabaseRequest("/developer_access_requests", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: [record],
+  });
+  return recordToDeveloperAccessRequest(records?.[0] || record);
+}
+
 async function supabaseRequest(path, options = {}) {
   const url = new URL(`${config.SUPABASE.URL.replace(/\/$/, "")}/rest/v1${path}`);
   for (const [key, value] of Object.entries(options.query || {})) {
@@ -573,6 +648,34 @@ function recordToChatMessage(record) {
   };
 }
 
+function recordToDeveloperApiKey(record) {
+  return {
+    id: record.id,
+    appId: record.app_id,
+    name: record.name,
+    keyHash: record.key_hash,
+    keyPrefix: record.key_prefix,
+    environment: record.environment,
+    status: record.status,
+    lastUsedAt: record.last_used_at,
+    createdAt: record.created_at,
+    revokedAt: record.revoked_at,
+  };
+}
+
+function recordToDeveloperAccessRequest(record) {
+  return {
+    id: record.id,
+    name: record.name,
+    email: record.email,
+    project: record.project,
+    useCase: record.use_case,
+    website: record.website,
+    status: record.status,
+    createdAt: record.created_at,
+  };
+}
+
 function upsertById(records, record) {
   const index = records.findIndex(item => item.id === record.id);
   if (index === -1) return [record, ...records];
@@ -605,6 +708,9 @@ module.exports = {
   listNudges,
   saveChatMessage,
   listChatMessages,
+  findDeveloperApiKeyByHash,
+  recordInfrastructureUsage,
+  saveDeveloperAccessRequest,
   resolveUserId,
   getPersistenceStatus,
   isSupabaseConfigured,

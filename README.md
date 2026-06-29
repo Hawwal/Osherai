@@ -1,22 +1,24 @@
 # Osher AI
 
-## Notice
- verification in Nigeria. Project verification is available on karma, 8004 with agent id 131, and selfclaw.
+Osher AI is a MiniPay-first savings agent and infrastructure layer for Celo stablecoin savings.
 
-## Overview
-Osher AI is a savings agent for emerging market users that can help save autonomously, invest and provide financial advise tips to improve the your fintech experience.
+The consumer app helps users create savings goals, receive AI coaching, and deposit USDT into goal-based vaults. Osher Infrastructure exposes the same savings intelligence through builder APIs and a JavaScript SDK for wallets, fintech apps, and autonomous agents.
 
-The product direction is PiggyVest-style habit formation with savings held in USDT or other Celo stablecoins, plus an AI coach that helps users set goals, stay consistent, and understand their progress in plain language.
+## Product Direction
+
+Osher combines PiggyVest-style goal-based savings with self-custodial Celo stablecoin rails. The product is designed for emerging-market users who think in local currency but want savings that can be tracked in USDT.
 
 ## Current Baseline
 - Celo-only network support.
 - MiniPay as the primary wallet.
 - MetaMask as fallback for users who already hold Celo stablecoins.
-- Zero-value Celo login transaction after wallet connection to prove wallet control.
+- Wallet login proof after connection.
 - In-app chat endpoint for balance checks, goal creation, alerts, and basic Celo transaction preparation.
 - Supabase-ready persistence for users, wallets, goals, transactions, and agent logs with a local memory fallback.
 - `OsherSavingsVault.sol` for goal creation, deposits, round-ups, agent auto-sweeps, locked withdrawals, and owner pause controls.
 - Existing Render deployment shape is retained.
+- Private-beta Osher Infrastructure endpoints under `/api/infra/v1`.
+- JavaScript SDK under `sdk/osher-js`.
 
 ## Supported Assets
 - USDT on Celo
@@ -42,6 +44,34 @@ The product direction is PiggyVest-style habit formation with savings held in US
 - `GET /api/price` - basic token price lookup.
 - `GET /api/gas` - Celo/EVM gas data.
 
+## Osher Infrastructure
+
+Builder-facing endpoints are available under:
+
+```text
+/api/infra/v1
+```
+
+Key capabilities:
+
+- goal parsing
+- goal planning
+- public sandbox endpoints
+- savings nudges
+- financial tips
+- vault deposit intents
+- savings context summaries
+- OpenAPI metadata at `/api/infra/v1/openapi.json`
+- developer portal at `/developers.html`
+- hosted docs at `/docs.html`
+
+Documentation:
+
+- `docs/osher-infrastructure.md`
+- `docs/investor-walkthrough.md`
+- `docs/architecture.md`
+- `docs/agent-tool-spec.md`
+
 ## Setup
 ```bash
 npm install
@@ -63,13 +93,33 @@ SUPABASE_SERVICE_ROLE_KEY=...
 OSHER_SAVINGS_VAULT=0x...
 VAULT_SAVINGS_TOKEN=0x...
 VAULT_AGENT_ADDRESS=0x...
+OSHER_INFRA_API_KEYS=key_one,key_two
+OSHER_INFRA_API_KEY_HASHES=sha256_hash_one,sha256_hash_two
+OSHER_INFRA_REQUIRE_API_KEY=true
+OSHER_INFRA_RATE_LIMIT_PER_MINUTE=60
+```
+
+Generate a private-beta infrastructure key:
+
+```bash
+npm run infra:key -- partner_app "Partner production key" production
+```
+
+Public sandbox endpoints do not require a key:
+
+```text
+GET  /api/infra/v1/sandbox/health
+POST /api/infra/v1/sandbox/goals/plan
+POST /api/infra/v1/sandbox/vault/deposit-intent
 ```
 
 ## Next Build Steps
-- Wire frontend deposits to `OsherSavingsVault.sol`.
-- Add Supabase-backed tips, recommendations, and notification delivery.
-- Add weekly nudges, goal progress, streaks, and activity feed.
-- Add round-up savings and later explicit opt-in yield features.
+- Polish production MiniPay testing and wallet edge cases.
+- Add hosted developer documentation.
+- Add infrastructure rate limits, request analytics, and API key onboarding.
+- Add notification delivery for weekly nudges.
+- Expand SDK examples and agent tool schemas.
+- Add explicit opt-in yield features after the savings MVP is stable.
 
 ## License
 MIT

@@ -41,6 +41,7 @@ const { handleWhatsAppWebhook, verifyWebhook: verifyWhatsAppWebhook }    = requi
 const { createPaymentRequest, verifyPayment, hasRecentPayment }          = require("./src/payments/x402Payment");
 const { notifyAlertTriggered } = require("./src/bots/notifier");
 const mountAdminRoutes = require("./adminRoutes");
+const createInfrastructureRouter = require("./src/infrastructure/routes");
 
 const app    = express();
 const server = http.createServer(app);
@@ -88,12 +89,16 @@ if (hasBuiltFrontend) {
 
 app.use("/.well-known", express.static(path.join(frontendDir, ".well-known")));
 app.get("/admin.html", (req, res) => res.sendFile(path.join(frontendDir, "admin.html")));
+app.get("/developers.html", (req, res) => res.sendFile(path.join(frontendDir, "developers.html")));
+app.get("/docs.html", (req, res) => res.sendFile(path.join(frontendDir, "docs.html")));
 app.get("/logo.svg", (req, res) => res.sendFile(path.join(frontendDir, "logo.svg")));
 
 app.get("/.well-known/agent-registration.json", (req, res) => {
   res.type("application/json");
   res.sendFile(path.join(__dirname, "frontend", "agent-registration.json"));
 });
+
+app.use("/api/infra/v1", createInfrastructureRouter());
 
 // ── Supabase Auth API ─────────────────────────────────────────────
 

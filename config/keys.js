@@ -99,6 +99,14 @@ module.exports = {
 
   ADMIN_PASSWORD: env.ADMIN_PASSWORD || "osherai-admin",
 
+  // ── Osher Infrastructure API ─────────────────────────────────
+  INFRASTRUCTURE: {
+    API_KEYS: env.OSHER_INFRA_API_KEYS || "",
+    API_KEY_HASHES: env.OSHER_INFRA_API_KEY_HASHES || "",
+    REQUIRE_API_KEY: String(env.OSHER_INFRA_REQUIRE_API_KEY || "").toLowerCase() === "true",
+    RATE_LIMIT_PER_MINUTE: parseInt(env.OSHER_INFRA_RATE_LIMIT_PER_MINUTE || "60", 10),
+  },
+
   // ── Mento Swap (Celo native stablecoin swap) ────────────────
   SWAP: {
     MENTO_BROKER_ADDRESS: env.MENTO_BROKER_ADDRESS || "0x777A8255cA72E541B2aA3a9B1cBB0F92b90b5C3B",

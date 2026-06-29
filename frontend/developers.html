@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Osher Infrastructure Developers</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f6fb; color: #111118; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { background: #111118; color: white; padding: 56px 20px 44px; }
+    main { width: min(1080px, calc(100% - 32px)); margin: -24px auto 56px; display: grid; gap: 18px; }
+    a { color: inherit; }
+    .hero { width: min(1080px, calc(100% - 32px)); margin: 0 auto; }
+    .eyebrow { color: #ccccf7; font-size: 13px; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }
+    h1 { font-size: clamp(34px, 7vw, 68px); line-height: .96; margin: 12px 0 18px; letter-spacing: -0.04em; }
+    h2 { font-size: 22px; margin: 0 0 12px; letter-spacing: -0.02em; }
+    p { line-height: 1.65; margin: 0; color: #5d5d73; }
+    header p { color: #d7d7ea; max-width: 720px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card { background: white; border: 1px solid rgba(20,20,35,.08); border-radius: 8px; padding: 22px; box-shadow: 0 12px 30px rgba(20,20,35,.06); }
+    .code { background: #111118; color: #e9e9ff; border-radius: 8px; padding: 16px; overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 16px; border-radius: 8px; text-decoration: none; font-weight: 800; border: 1px solid rgba(255,255,255,.22); }
+    .primary { background: #ccccf7; color: #111118; border-color: #ccccf7; }
+    .secondary { color: white; }
+    form { display: grid; gap: 12px; }
+    input, textarea { width: 100%; border: 1px solid rgba(20,20,35,.13); border-radius: 8px; padding: 12px 13px; font: inherit; background: #fbfbff; }
+    textarea { min-height: 108px; resize: vertical; }
+    label { display: grid; gap: 6px; color: #33334a; font-weight: 800; font-size: 13px; }
+    button { border: 0; border-radius: 8px; padding: 13px 16px; background: #111118; color: #ccccf7; font-weight: 900; cursor: pointer; }
+    .status { font-weight: 800; color: #286b3c; min-height: 22px; }
+    .full { grid-column: 1 / -1; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } header { padding-top: 42px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero">
+      <div class="eyebrow">Osher Infrastructure</div>
+      <h1>AI savings rails for wallets, fintechs, and agents.</h1>
+      <p>Add goal parsing, savings plans, nudges, tips, and wallet-safe Celo USDT deposit intents without rebuilding the savings intelligence layer.</p>
+      <div class="button-row">
+        <a class="button primary" href="/docs.html">Read docs</a>
+        <a class="button secondary" href="/api/infra/v1/openapi.json">OpenAPI</a>
+        <a class="button secondary" href="/api/infra/v1/sandbox/health">Sandbox health</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid">
+      <div class="card">
+        <h2>Parse Goals</h2>
+        <p>Turn natural language like "save 150,000 naira for rent by December" into structured goal fields.</p>
+      </div>
+      <div class="card">
+        <h2>Create Plans</h2>
+        <p>Generate USDT targets, local-currency display values, deadlines, and weekly saving plans.</p>
+      </div>
+      <div class="card">
+        <h2>Prepare Deposits</h2>
+        <p>Create wallet-safe deposit intents. Users still approve all token and vault transactions.</p>
+      </div>
+    </section>
+
+    <section class="card full">
+      <h2>Sandbox Quickstart</h2>
+      <p>Sandbox endpoints do not require an API key and do not move funds.</p>
+      <pre class="code">curl -X POST https://osherai.onrender.com/api/infra/v1/sandbox/goals/plan \
+  -H "Content-Type: application/json" \
+  -d '{"amount":150000,"currency":"NGN","purpose":"rent","deadline":"December 1"}'</pre>
+    </section>
+
+    <section class="card full">
+      <h2>Request Production Access</h2>
+      <p style="margin-bottom: 16px;">Production keys are approved before use because Osher prepares financial actions.</p>
+      <form id="access-form">
+        <label>Name<input name="name" required placeholder="Amina Bello" /></label>
+        <label>Email<input name="email" required type="email" placeholder="amina@example.com" /></label>
+        <label>Project<input name="project" required placeholder="Wallet, fintech app, agent, or integration name" /></label>
+        <label>Website<input name="website" placeholder="https://example.com" /></label>
+        <label>Use case<textarea name="useCase" placeholder="Describe how the integration will use Osher Infrastructure"></textarea></label>
+        <button type="submit">Request Access</button>
+        <div id="status" class="status"></div>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("access-form");
+    const status = document.getElementById("status");
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      status.textContent = "Submitting...";
+      const body = Object.fromEntries(new FormData(form).entries());
+      const response = await fetch("/api/infra/v1/developer-access/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        status.style.color = "#b3261e";
+        status.textContent = data.error?.message || "Could not submit request.";
+        return;
+      }
+      status.style.color = "#286b3c";
+      status.textContent = "Request received. The Osher team will review it.";
+      form.reset();
+    });
+  </script>
+</body>
+</html>
