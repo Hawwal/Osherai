@@ -4,6 +4,10 @@
 create table if not exists public.users (
   id text primary key,
   local_session_id text unique not null,
+  auth_user_id text,
+  name text,
+  contact text,
+  auth_method text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -174,3 +178,20 @@ create index if not exists idx_developer_api_keys_hash_status on public.develope
 create index if not exists idx_infra_usage_api_key_created_at on public.infrastructure_usage_events(api_key_id, created_at desc);
 create index if not exists idx_infra_usage_path_created_at on public.infrastructure_usage_events(path, created_at desc);
 create index if not exists idx_developer_access_requests_status_created_at on public.developer_access_requests(status, created_at desc);
+
+
+-- Production RLS baseline
+-- The app server uses the service role key for REST persistence. These policies prevent accidental public client access.
+alter table public.users enable row level security;
+alter table public.wallets enable row level security;
+alter table public.goals enable row level security;
+alter table public.transactions enable row level security;
+alter table public.agent_logs enable row level security;
+alter table public.nudges enable row level security;
+alter table public.chat_messages enable row level security;
+alter table public.savings_tips enable row level security;
+alter table public.recommendations enable row level security;
+alter table public.developer_apps enable row level security;
+alter table public.developer_api_keys enable row level security;
+alter table public.infrastructure_usage_events enable row level security;
+alter table public.developer_access_requests enable row level security;

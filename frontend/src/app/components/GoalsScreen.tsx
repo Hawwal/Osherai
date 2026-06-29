@@ -14,9 +14,11 @@ interface Props {
   onAskAi: () => void;
   onToggleRoundUp: (goal: SavingsGoal) => void;
   onLogSpend: (goal: SavingsGoal) => void;
+  onPauseGoal: (goal: SavingsGoal) => void;
+  onResumeGoal: (goal: SavingsGoal) => void;
 }
 
-export function GoalsScreen({ goals, displayMode, contracts, onGoalClick, onCreateManualGoal, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onAskAi, onToggleRoundUp, onLogSpend }: Props) {
+export function GoalsScreen({ goals, displayMode, contracts, onGoalClick, onCreateManualGoal, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onAskAi, onToggleRoundUp, onLogSpend, onPauseGoal, onResumeGoal }: Props) {
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-28" style={{ background: '#f5f5fb', scrollbarWidth: 'none' }}>
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
@@ -61,6 +63,7 @@ export function GoalsScreen({ goals, displayMode, contracts, onGoalClick, onCrea
                 <button onClick={() => onWithdraw(goal)} disabled={!onChainReady || !hasBalance} className="px-3 py-2 rounded-xl" style={{ background: '#fff3dc', color: '#b36a00', opacity: onChainReady && hasBalance ? 1 : 0.45, fontWeight: 700, fontSize: '0.75rem' }}>Withdraw</button>
                 <button onClick={() => onDeleteGoal(goal)} disabled={hasBalance} className="px-3 py-2 rounded-xl" style={{ background: '#fff5f5', color: '#c0392b', opacity: hasBalance ? 0.45 : 1, fontWeight: 700, fontSize: '0.75rem' }}>{onChainReady ? 'Archive' : 'Delete'}</button>
                 <button onClick={() => onToggleRoundUp(goal)} className="px-3 py-2 rounded-xl" style={{ background: '#f0f0f9', color: '#3d3d6e', fontWeight: 700, fontSize: '0.75rem' }}>{goal.roundUpEnabled ? 'Round-up on' : 'Round-up off'}</button>
+                <button onClick={() => goal.status === 'paused' ? onResumeGoal(goal) : onPauseGoal(goal)} disabled={!onChainReady} className="px-3 py-2 rounded-xl" style={{ background: '#f7f7ff', color: '#3d3d6e', opacity: onChainReady ? 1 : 0.45, fontWeight: 700, fontSize: '0.75rem' }}>{goal.status === 'paused' ? 'Resume' : 'Pause'}</button>
                 <button onClick={() => onLogSpend(goal)} className="px-3 py-2 rounded-xl flex items-center gap-1.5" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 700, fontSize: '0.75rem', border: '1px solid rgba(0,0,0,0.07)' }}><TrendingUp size={13} />Log spend</button>
               </div>
             </div>

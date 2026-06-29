@@ -22,6 +22,8 @@ const {
   recordVaultDeposit,
   recordVaultWithdrawal,
   archiveOrDeleteGoal,
+  setGoalStatus,
+  reconcileGoalsForSession,
   getActivityForSession,
   getDashboardForSession,
   setRoundUpPreference,
@@ -249,6 +251,24 @@ app.post("/api/goals/:sessionId/:goalId/deposit-confirmed", async (req, res) => 
 app.post("/api/goals/:sessionId/:goalId/withdrawal-confirmed", async (req, res) => {
   try {
     const result = await recordVaultWithdrawal(req.params.sessionId, req.params.goalId, req.body || {});
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId/reconcile", async (req, res) => {
+  try {
+    const result = await reconcileGoalsForSession(req.params.sessionId);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/goals/:sessionId/:goalId/status", async (req, res) => {
+  try {
+    const result = await setGoalStatus(req.params.sessionId, req.params.goalId, req.body?.status, req.body || {});
     res.status(result.success ? 200 : 400).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -36,6 +36,9 @@ import {
   encodeVaultCreateGoal,
   encodeVaultDeposit,
   encodeVaultWithdraw,
+  encodeVaultRoundUp,
+  encodeVaultPauseGoal,
+  encodeVaultResumeGoal,
   formatUnits,
   isMiniPay,
   loadAppData,
@@ -50,6 +53,7 @@ import {
 type Flow = 'splash' | 'onboarding' | 'auth' | 'wallet' | 'app';
 type Tab = 'home' | 'goals' | 'chat' | 'tips' | 'profile';
 type Overlay = null | 'goal-detail' | 'manual-goal' | 'notifications' | 'recommendations' | 'yield' | 'social' | 'challenges';
+type ActionSheet = null | { type: 'topup' | 'withdraw' | 'spend'; goal: SavingsGoal; title: string; label: string; placeholder: string; defaultValue?: string };
 
 const EMPTY_DATA: AppData = {
   goals: [],
@@ -59,6 +63,7 @@ const EMPTY_DATA: AppData = {
   tips: [],
   recommendations: [],
   walletInfo: {},
+  walletBalances: {},
   displayMode: 'local',
   contracts: {},
 };
@@ -75,6 +80,8 @@ export default function App() {
   const [networkConfig, setNetworkConfig] = useState<any>(null);
   const [data, setData] = useState<AppData>(EMPTY_DATA);
   const [notice, setNotice] = useState('');
+  const [actionSheet, setActionSheet] = useState<ActionSheet>(null);
+  const [sheetValue, setSheetValue] = useState('');
   const [miniPayLaunchProofRequested, setMiniPayLaunchProofRequested] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState(() => getUserDisplayName());
 
@@ -186,6 +193,12 @@ export default function App() {
     if (!data.contracts?.savingsToken) throw new Error('Savings token is not configured yet.');
   };
 
+  const reconcileGoals = async () => {
+    const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/reconcile', { method: 'POST' }).catch(err => ({ error: cleanWalletError(err) }));
+    await refreshData();
+    setNotice(result.message || result.error || 'Goal balances refreshed from the vault.');
+  };
+
   const createVaultGoal = async (goal: SavingsGoal) => {
     try {
       ensureVaultReady();
@@ -216,7 +229,7 @@ export default function App() {
     }
   };
 
-  const topUpGoal = async (goal: SavingsGoal, presetAmount?: number) => {
+  const executeTopUpGoal = async (goal: SavingsGoal, presetAmount: number) => {
     try {
       ensureVaultReady();
       if (!goal.vaultGoalCreated) {
@@ -224,10 +237,7 @@ export default function App() {
         setOverlay('goal-detail');
         throw new Error('Create this goal vault first, then top it up.');
       }
-      const suggested = presetAmount || goal.weeklyTargetUSDT || 1;
-      const value = presetAmount ? String(presetAmount) : window.prompt('Amount in USDT', Number(suggested).toFixed(2));
-      if (!value) return;
-      const amount = Number(value);
+      const amount = Number(presetAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid USDT amount.');
       const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
       const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
@@ -271,15 +281,20 @@ export default function App() {
     }
   };
 
-  const withdrawGoal = async (goal: SavingsGoal) => {
+  const topUpGoal = async (goal: SavingsGoal, presetAmount?: number) => {
+    if (presetAmount !== undefined) return executeTopUpGoal(goal, presetAmount);
+    const suggested = Number(goal.weeklyTargetUSDT || 1).toFixed(2);
+    setSheetValue(suggested);
+    setActionSheet({ type: 'topup', goal, title: 'Top up goal', label: 'Amount in USDT', placeholder: suggested, defaultValue: suggested });
+  };
+
+  const executeWithdrawGoal = async (goal: SavingsGoal, presetAmount: number) => {
     try {
       ensureVaultReady();
       if (!goal.vaultGoalCreated) throw new Error('This goal is not on-chain yet.');
       const available = Number(goal.currentAmountUSDT || 0);
       if (available <= 0) throw new Error('This goal has no saved balance to withdraw.');
-      const value = window.prompt('Amount to withdraw in USDT', available.toFixed(2));
-      if (!value) return;
-      const amount = Number(value);
+      const amount = Number(presetAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid USDT amount.');
       if (amount > available) throw new Error(`You can withdraw up to ${available.toFixed(2)} USDT.`);
       const ethereum = (window as any).ethereum;
@@ -309,6 +324,12 @@ export default function App() {
     }
   };
 
+  const withdrawGoal = async (goal: SavingsGoal) => {
+    const available = Number(goal.currentAmountUSDT || 0);
+    setSheetValue(available.toFixed(2));
+    setActionSheet({ type: 'withdraw', goal, title: 'Withdraw savings', label: 'Amount in USDT', placeholder: available.toFixed(2), defaultValue: available.toFixed(2) });
+  };
+
   const deleteOrArchiveGoal = async (goal: SavingsGoal) => {
     try {
       const balance = Number(goal.currentAmountUSDT || 0);
@@ -326,6 +347,29 @@ export default function App() {
     }
   };
 
+  const setGoalPauseState = async (goal: SavingsGoal, paused: boolean) => {
+    try {
+      ensureVaultReady();
+      if (!goal.vaultGoalCreated) throw new Error('Create this goal vault first.');
+      const ethereum = (window as any).ethereum;
+      const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
+      setNotice(paused ? 'Pausing this goal in your wallet...' : 'Resuming this goal in your wallet...');
+      const txHash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: paused ? encodeVaultPauseGoal(vaultGoalId) : encodeVaultResumeGoal(vaultGoalId) }],
+      });
+      await pollTransaction(txHash, 'celo');
+      const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/status', {
+        method: 'POST',
+        body: JSON.stringify({ status: paused ? 'paused' : 'active', txHash }),
+      });
+      await refreshData();
+      setNotice(result.message || (paused ? 'Goal paused.' : 'Goal resumed.'));
+    } catch (err) {
+      setNotice(cleanWalletError(err));
+    }
+  };
+
   const toggleRoundUp = async (goal: SavingsGoal) => {
     const result = await apiJson<any>('/api/roundups/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/preference', {
       method: 'POST',
@@ -335,15 +379,62 @@ export default function App() {
     await refreshData();
   };
 
-  const logSpend = async (goal: SavingsGoal) => {
-    const amount = Number(window.prompt('Amount spent in ' + (goal.displayCurrency || 'NGN'), ''));
+  const executeLogSpend = async (goal: SavingsGoal, amount: number) => {
     if (!Number.isFinite(amount) || amount <= 0) return;
     const result = await apiJson<any>('/api/roundups/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/spend', {
       method: 'POST',
       body: JSON.stringify({ amount, currency: goal.displayCurrency || 'NGN' }),
     }).catch(err => ({ error: cleanWalletError(err) }));
-    setNotice(result.message || result.error || 'Spend logged.');
+    if (result.roundUp?.roundUpUSDT > 0 && goal.roundUpEnabled && goal.vaultGoalCreated) {
+      await executeRoundUpDeposit(goal, Number(result.roundUp.roundUpUSDT));
+    } else {
+      setNotice(result.message || result.error || 'Spend logged.');
+    }
     await refreshData();
+  };
+
+  const logSpend = async (goal: SavingsGoal) => {
+    setSheetValue('');
+    setActionSheet({ type: 'spend', goal, title: 'Log spending', label: 'Amount spent in ' + (goal.displayCurrency || 'NGN'), placeholder: goal.displayCurrency === 'NGN' ? '2500' : '4.60' });
+  };
+
+  const executeRoundUpDeposit = async (goal: SavingsGoal, amount: number) => {
+    try {
+      ensureVaultReady();
+      const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
+      const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
+      const ethereum = (window as any).ethereum;
+      setNotice('Approve USDT round-up for the vault...');
+      const approveHash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: walletInfo.address, to: data.contracts.savingsToken, value: '0x0', data: encodeErc20Approve(data.contracts.savingsVault!, amountUnits) }],
+      });
+      await pollTransaction(approveHash, 'celo');
+      setNotice('Saving your round-up...');
+      const roundUpHash = await ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: encodeVaultRoundUp(vaultGoalId, amountUnits) }],
+      });
+      await pollTransaction(roundUpHash, 'celo');
+      await apiJson('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/deposit-confirmed', {
+        method: 'POST',
+        body: JSON.stringify({ amountUSDT: amount, txHash: roundUpHash, type: 'round_up' }),
+      });
+      setNotice(amount.toFixed(2) + ' USDT round-up saved for ' + (goal.name || 'your goal') + '.');
+    } catch (err) {
+      setNotice(cleanWalletError(err));
+    }
+  };
+
+  const submitActionSheet = async () => {
+    if (!actionSheet) return;
+    const amount = Number(sheetValue);
+    const current = actionSheet;
+    setActionSheet(null);
+    setSheetValue('');
+    if (current.type === 'topup') return executeTopUpGoal(current.goal, amount);
+    if (current.type === 'withdraw') return executeWithdrawGoal(current.goal, amount);
+    return executeLogSpend(current.goal, amount);
   };
 
   const updateRecommendation = async (rec: Recommendation, status: 'accepted' | 'customised' | 'dismissed') => {
@@ -388,9 +479,9 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (overlay === 'goal-detail') return <GoalDetailsScreen goal={selectedGoal} displayMode={displayMode} onBack={() => setOverlay(null)} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+    if (overlay === 'goal-detail') return <GoalDetailsScreen goal={selectedGoal} displayMode={displayMode} onBack={() => setOverlay(null)} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} onPauseGoal={(goal) => setGoalPauseState(goal, true)} onResumeGoal={(goal) => setGoalPauseState(goal, false)} onReconcile={reconcileGoals} />;
     if (overlay === 'manual-goal') return <ManualGoalFormScreen onBack={() => setOverlay(null)} onAskAi={() => { setOverlay(null); setTab('chat'); }} onCreateGoal={createManualGoal} />;
-    if (overlay === 'notifications') return <NotificationsScreen onBack={() => setOverlay(null)} />;
+    if (overlay === 'notifications') return <NotificationsScreen onBack={() => setOverlay(null)} activity={data.activity} goals={data.goals} />;
     if (overlay === 'recommendations') return <RecommendationsScreen recommendations={data.recommendations} onUpdate={updateRecommendation} />;
     if (overlay === 'yield') return <YieldScreen comingSoon />;
     if (overlay === 'social') return <SocialScreen comingSoon />;
@@ -400,13 +491,13 @@ export default function App() {
       case 'home':
         return <HomeScreen data={data} displayMode={displayMode} userName={userDisplayName} onDisplayModeChange={setDisplayMode} onGoalClick={handleGoalClick} onChatClick={() => setTab('chat')} onNotifClick={() => setOverlay('notifications')} onAddGoal={() => setOverlay('manual-goal')} onDeposit={handleHomeDeposit} onTopUp={topUpGoal} onWeeklyNudge={requestWeeklyNudge} />;
       case 'goals':
-        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateManualGoal={() => setOverlay('manual-goal')} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onAskAi={() => setTab('chat')} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} />;
+        return <GoalsScreen goals={data.goals} displayMode={displayMode} contracts={data.contracts as ContractsConfig} onGoalClick={handleGoalClick} onCreateManualGoal={() => setOverlay('manual-goal')} onCreateVaultGoal={createVaultGoal} onTopUp={topUpGoal} onWithdraw={withdrawGoal} onDeleteGoal={deleteOrArchiveGoal} onAskAi={() => setTab('chat')} onToggleRoundUp={toggleRoundUp} onLogSpend={logSpend} onPauseGoal={(goal) => setGoalPauseState(goal, true)} onResumeGoal={(goal) => setGoalPauseState(goal, false)} />;
       case 'chat':
         return <AIChatScreen userName={userDisplayName} initialMessages={data.chatMessages} onSendMessage={sendMessage} onDataChanged={refreshData} />;
       case 'tips':
         return <TipsScreen tips={data.tips} onExplainTip={sendMessage} />;
       case 'profile':
-        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} onProfileUpdate={handleProfileUpdate} onOpenChat={() => setTab('chat')} />;
+        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} dashboard={data.dashboard} walletBalances={data.walletBalances} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} onProfileUpdate={handleProfileUpdate} onOpenChat={() => setTab('chat')} />;
       default:
         return null;
     }
@@ -434,6 +525,24 @@ export default function App() {
           <>
             <div className="flex-1 overflow-hidden">{renderContent()}</div>
             <BottomNav active={tab} onChange={handleTabChange} />
+            {actionSheet && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 420, background: 'rgba(13,13,20,0.34)', display: 'flex', alignItems: 'flex-end' }}>
+                <div style={{ width: '100%', background: '#fff', borderRadius: '28px 28px 0 0', padding: '22px 20px calc(24px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -10px 32px rgba(0,0,0,0.18)' }}>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <h2 className="font-display" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0d0d14' }}>{actionSheet.title}</h2>
+                      <p style={{ color: '#6b6b8a', fontSize: '0.82rem', marginTop: 3 }}>{actionSheet.goal.name}</p>
+                    </div>
+                    <button onClick={() => setActionSheet(null)} style={{ width: 34, height: 34, borderRadius: 12, background: '#f0f0f9', color: '#3d3d6e', fontWeight: 900 }}>×</button>
+                  </div>
+                  <label className="block rounded-2xl p-4 mb-4" style={{ background: '#f5f5fb' }}>
+                    <span className="block" style={{ color: '#6b6b8a', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{actionSheet.label}</span>
+                    <input autoFocus value={sheetValue} onChange={e => setSheetValue(e.target.value)} inputMode="decimal" type="number" min="0" placeholder={actionSheet.placeholder} className="w-full outline-none bg-transparent mt-2" style={{ color: '#0d0d14', fontSize: '1.4rem', fontWeight: 900 }} />
+                  </label>
+                  <button onClick={submitActionSheet} disabled={Number(sheetValue) <= 0} className="w-full py-4 rounded-2xl" style={{ background: Number(sheetValue) > 0 ? '#171717' : '#d8d8e8', color: Number(sheetValue) > 0 ? '#CCCCF7' : '#7f7f9d', fontWeight: 900 }}>Continue</button>
+                </div>
+              </div>
+            )}
             {!overlay && tab === 'home' && (
               <div style={{ position: 'absolute', bottom: 72, left: 0, right: 0, display: 'flex', gap: 8, overflowX: 'auto', padding: '0 16px 4px', scrollbarWidth: 'none', zIndex: 50 }}>
                 {[

@@ -1062,6 +1062,78 @@ async function recordVaultWithdrawal(sessionId, goalId, withdrawal = {}) {
   };
 }
 
+async function setGoalStatus(sessionId, goalId, status, data = {}) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  const allowed = new Set(["active", "paused"]);
+  if (!allowed.has(status)) return { success: false, error: "Status must be active or paused" };
+  const goal = findSessionGoal(session, goalId);
+  if (!goal) return { success: false, error: "Goal not found" };
+
+  const savedGoal = await safePersist("save goal status", () => persistence.saveGoal(session.userId, { ...goal, status }), { ...goal, status });
+  session.goals = upsertGoal(session.goals, savedGoal);
+
+  const message = status === "paused" ? `${savedGoal.name} paused.` : `${savedGoal.name} resumed.`;
+  await safePersist("log goal status", () => persistence.logAgentAction(session.userId, {
+    goalId,
+    type: "goal_status",
+    message,
+    txHash: data.txHash,
+  }));
+
+  return { success: true, goal: savedGoal, goals: session.goals, message };
+}
+
+async function reconcileGoalsForSession(sessionId) {
+  const session = activeSessions.get(sessionId) || createSession(sessionId, {});
+  activeSessions.set(sessionId, session);
+  await hydratePersistentSession(session);
+
+  if (!config.CONTRACTS.OSHER_SAVINGS_VAULT) {
+    return { success: false, error: "Savings vault is not configured." };
+  }
+
+  const provider = new ethers.JsonRpcProvider(config.RPC.CELO);
+  const vault = new ethers.Contract(config.CONTRACTS.OSHER_SAVINGS_VAULT, [
+    "function getGoal(bytes32 goalId) view returns (tuple(address user,uint256 targetAmount,uint256 currentAmount,uint256 deadline,bool roundUpEnabled,uint8 status,uint256 createdAt))",
+  ], provider);
+  const statusMap = ["none", "active", "completed", "paused", "withdrawn"];
+  const reconciled = [];
+
+  for (const goal of session.goals || []) {
+    if (!goal.vaultGoalCreated) continue;
+    try {
+      const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
+      const onchain = await vault.getGoal(vaultGoalId);
+      const currentAmountUSDT = Number(ethers.formatUnits(onchain.currentAmount, 6));
+      const targetAmountUSDT = Number(goal.targetAmountUSDT || 1);
+      const progressPercent = targetAmountUSDT > 0 ? Math.min(100, (currentAmountUSDT / targetAmountUSDT) * 100) : 0;
+      const status = statusMap[Number(onchain.status)] || goal.status || "active";
+      const updated = {
+        ...goal,
+        currentAmountUSDT,
+        progressPercent,
+        roundUpEnabled: Boolean(onchain.roundUpEnabled),
+        status,
+      };
+      const saved = await safePersist("save reconciled goal", () => persistence.saveGoal(session.userId, updated), updated);
+      session.goals = upsertGoal(session.goals, saved);
+      reconciled.push(saved);
+    } catch (error) {
+      console.warn("[Reconcile] Goal skipped:", goal.id, error.message);
+    }
+  }
+
+  return { success: true, count: reconciled.length, goals: session.goals, message: `Refreshed ${reconciled.length} on-chain goal${reconciled.length === 1 ? "" : "s"}.` };
+}
+
+function bytes32FromString(value) {
+  const bytes = Buffer.from(String(value));
+  return "0x" + Buffer.concat([bytes.subarray(0, 32), Buffer.alloc(Math.max(0, 32 - bytes.length))]).toString("hex").slice(0, 64);
+}
+
 async function archiveOrDeleteGoal(sessionId, goalId) {
   const session = activeSessions.get(sessionId) || createSession(sessionId, {});
   activeSessions.set(sessionId, session);
@@ -1806,6 +1878,8 @@ module.exports = {
   recordVaultDeposit,
   recordVaultWithdrawal,
   archiveOrDeleteGoal,
+  setGoalStatus,
+  reconcileGoalsForSession,
   getActivityForSession,
   getDashboardForSession,
   setRoundUpPreference,

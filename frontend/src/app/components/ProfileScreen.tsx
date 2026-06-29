@@ -2,36 +2,40 @@ import { useState } from "react";
 import { ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import osherLogo from "../../imports/Osher_wallet_logo.png";
-import { AuthProfile, WalletInfo, loadStoredAuthProfile, shortAddress } from "../lib/osher";
+import { AuthProfile, DashboardStats, WalletBalances, WalletInfo, formatNumber, loadStoredAuthProfile, shortAddress } from "../lib/osher";
 
 interface Props {
   userName?: string;
   walletInfo?: WalletInfo;
   displayMode?: "local" | "usdt";
+  dashboard?: DashboardStats;
+  walletBalances?: WalletBalances;
   onDisplayModeChange?: (mode: "local" | "usdt") => void;
   onDisconnect?: () => void;
   onProfileUpdate?: (profile: AuthProfile) => void;
   onOpenChat?: () => void;
 }
 
-export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayModeChange, onDisconnect, onProfileUpdate, onOpenChat }: Props = {}) {
+export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {}, walletBalances = {}, onDisplayModeChange, onDisconnect, onProfileUpdate, onOpenChat }: Props = {}) {
   const [usd, setUsd] = useState(displayMode === "usdt");
   const [notifications, setNotifications] = useState(true);
   const [securityLock, setSecurityLock] = useState(true);
   const [profile, setProfile] = useState<AuthProfile>(() => loadStoredAuthProfile());
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(profile.name || (userName === "there" ? "" : userName || ""));
+  const [draftContact, setDraftContact] = useState(profile.contact || "");
+  const [status, setStatus] = useState("");
   const displayName = userName || "there";
   const walletLabel = walletInfo?.address
     ? `${walletInfo.walletType === "minipay" ? "MiniPay" : "MetaMask"} · ${shortAddress(walletInfo.address)}`
     : "No wallet connected";
   const contact = profile.contact || "Contact not set";
   const updateProfile = () => {
-    const nextName = window.prompt("Your name", displayName === "there" ? "" : displayName);
-    if (nextName === null) return;
-    const nextContact = window.prompt("Email or phone", profile.contact || "");
-    if (nextContact === null) return;
-    const next = { ...profile, name: nextName.trim(), contact: nextContact.trim() };
+    const next = { ...profile, name: draftName.trim(), contact: draftContact.trim() };
     setProfile(next);
     onProfileUpdate?.(next);
+    setEditing(false);
+    setStatus("Profile saved.");
   };
   const copyWallet = async () => {
     if (!walletInfo?.address) {
@@ -39,7 +43,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
       return;
     }
     await navigator.clipboard?.writeText(walletInfo.address).catch(() => null);
-    window.alert("Wallet address copied.");
+    setStatus("Wallet address copied.");
   };
   const toggleCurrency = () => {
     const nextMode = displayMode === "usdt" ? "local" : "usdt";
@@ -50,7 +54,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
     {
       title: "Account",
       items: [
-        { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : `${displayName} · ${contact}`, action: updateProfile },
+        { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : `${displayName} · ${contact}`, action: () => setEditing(true) },
         { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletLabel, action: copyWallet },
       ],
     },
@@ -91,16 +95,16 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
               <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{walletLabel}</p>
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf75", display: "inline-block" }} />
-                <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>Verified · 🔥 6-week streak</span>
+                <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>Verified · {Number(dashboard.streakWeeks || 0)}-week streak</span>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             {[
-              { l: "Total Saved", v: "$1,240" },
-              { l: "Active Goals", v: "3" },
-              { l: "Member Since", v: "Jan '25" },
+              { l: "Total Saved", v: formatNumber(dashboard.totalSavedUSDT || 0, 2) + " USDT" },
+              { l: "Active Goals", v: String(dashboard.activeGoalCount || 0) },
+              { l: "Wallet USDT", v: formatNumber(walletBalances.usdt || 0, 2) },
             ].map(({ l, v }) => (
               <div key={l} style={{ background: "rgba(255,255,255,0.07)", borderRadius: 12, padding: "9px 12px" }}>
                 <p style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{l}</p>
@@ -110,6 +114,21 @@ export function ProfileScreen({ userName, walletInfo, displayMode, onDisplayMode
           </div>
         </div>
       </div>
+
+      {editing && (
+        <div className="mx-4 mb-4 rounded-2xl p-4" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+          <label className="block mb-3">
+            <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#9a9ab8", textTransform: "uppercase" }}>Name</span>
+            <input value={draftName} onChange={e => setDraftName(e.target.value)} className="w-full outline-none bg-transparent mt-2" style={{ color: "#0d0d14", fontSize: "1rem", fontWeight: 700 }} />
+          </label>
+          <label className="block mb-4">
+            <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#9a9ab8", textTransform: "uppercase" }}>Email or phone</span>
+            <input value={draftContact} onChange={e => setDraftContact(e.target.value)} className="w-full outline-none bg-transparent mt-2" style={{ color: "#0d0d14", fontSize: "1rem", fontWeight: 700 }} />
+          </label>
+          <button onClick={updateProfile} className="w-full py-3 rounded-2xl" style={{ background: "#171717", color: "#CCCCF7", fontWeight: 800 }}>Save profile</button>
+        </div>
+      )}
+      {status && <p className="mx-4 mb-3" style={{ color: "#2d7a47", fontSize: "0.78rem", fontWeight: 700 }}>{status}</p>}
 
       {/* Currency toggle */}
       <div className="mx-4 mb-4 rounded-2xl p-4 flex items-center justify-between" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>

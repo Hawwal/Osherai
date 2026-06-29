@@ -2,7 +2,7 @@
 
 ## One-Line Summary
 
-Osher AI is a MiniPay-first savings agent and infrastructure layer that helps emerging-market users save in Celo stablecoins through goals, nudges, wallet-approved deposits, and AI coaching.
+Osher AI is an AI savings agent with an infrastructure layer that lets wallets, fintechs, and agents add AI-powered Celo stablecoin savings intelligence to any platform.
 
 ## Product Thesis
 

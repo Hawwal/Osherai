@@ -10,6 +10,11 @@ export type WalletInfo = {
   loginSignedAt?: string;
 };
 
+export type WalletBalances = {
+  celo?: number;
+  usdt?: number;
+};
+
 export type SavingsGoal = {
   id: string;
   name?: string;
@@ -94,12 +99,19 @@ export type AppData = {
   tips: Tip[];
   recommendations: Recommendation[];
   walletInfo: WalletInfo;
+  walletBalances: WalletBalances;
   displayMode: 'local' | 'usdt';
   contracts: ContractsConfig;
 };
 
 export function getOrCreateSessionId() {
   const key = 'osher_session_id';
+  const authProfile = loadStoredAuthProfile();
+  if (authProfile.userId) {
+    const authSession = 'auth_' + String(authProfile.userId).replace(/[^a-zA-Z0-9:_-]/g, '_');
+    localStorage.setItem(key, authSession);
+    return authSession;
+  }
   let id = localStorage.getItem(key);
   if (!id) {
     id = 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -108,7 +120,14 @@ export function getOrCreateSessionId() {
   return id;
 }
 
-export const SESSION_ID = getOrCreateSessionId();
+export let SESSION_ID = getOrCreateSessionId();
+
+export function setAuthenticatedSession(profile: AuthProfile) {
+  if (!profile.userId) return SESSION_ID;
+  SESSION_ID = 'auth_' + String(profile.userId).replace(/[^a-zA-Z0-9:_-]/g, '_');
+  localStorage.setItem('osher_session_id', SESSION_ID);
+  return SESSION_ID;
+}
 
 export function isMiniPay() {
   return typeof window !== 'undefined' && (window as any).ethereum?.isMiniPay === true;
@@ -159,7 +178,9 @@ export async function loadAppData(walletInfo: WalletInfo, displayMode: 'local' |
   const chatMessages = Array.isArray(chatResponse) ? chatResponse : (chatResponse.messages || []);
   const tips = Array.isArray(tipsResponse) ? tipsResponse : (tipsResponse.tips || []);
   const recommendations = Array.isArray(recommendationsResponse) ? recommendationsResponse : (recommendationsResponse.recommendations || []);
-  return { goals, dashboard, activity, chatMessages, tips, recommendations, walletInfo, displayMode, contracts };
+  const dashboardStats = (dashboard as any)?.stats || dashboard || {};
+  const walletBalances = walletInfo.address ? await loadWalletBalances(walletInfo.address, contracts).catch(() => ({})) : {};
+  return { goals, dashboard: dashboardStats, activity, chatMessages, tips, recommendations, walletInfo, walletBalances, displayMode, contracts };
 }
 
 export async function ensureCeloNetwork(networkConfig: NetworkConfig) {
@@ -253,6 +274,7 @@ export function storeAuthProfile(profile: AuthProfile) {
   };
   localStorage.setItem('osher_auth_profile', JSON.stringify(clean));
   if (clean.name) localStorage.setItem('osher_user_name', clean.name);
+  if (clean.userId) setAuthenticatedSession(clean);
   return clean;
 }
 
@@ -361,6 +383,24 @@ export async function readErc20Balance(tokenAddress: string, owner: string): Pro
   return BigInt(result || '0x0');
 }
 
+export async function readNativeCeloBalance(owner: string): Promise<bigint> {
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) throw new Error('No wallet provider detected.');
+  const result = await ethereum.request({ method: 'eth_getBalance', params: [owner, 'latest'] });
+  return BigInt(result || '0x0');
+}
+
+export async function loadWalletBalances(owner: string, contracts: ContractsConfig): Promise<WalletBalances> {
+  const [celoRaw, usdtRaw] = await Promise.all([
+    readNativeCeloBalance(owner).catch(() => 0n),
+    contracts.savingsToken ? readErc20Balance(contracts.savingsToken, owner).catch(() => 0n) : Promise.resolve(0n),
+  ]);
+  return {
+    celo: Number(formatUnits(celoRaw, 18, 6)),
+    usdt: Number(formatUnits(usdtRaw, 6, 6)),
+  };
+}
+
 export function encodeErc20Approve(spender: string, amountUnits: bigint) {
   return '0x095ea7b3' + encodeAddress(spender) + encodeUint(amountUnits);
 }
@@ -375,6 +415,18 @@ export function encodeVaultDeposit(vaultGoalId: string, amountUnits: bigint) {
 
 export function encodeVaultWithdraw(vaultGoalId: string, amountUnits: bigint) {
   return '0xcbf8e299' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(amountUnits);
+}
+
+export function encodeVaultRoundUp(vaultGoalId: string, amountUnits: bigint) {
+  return '0xf816f918' + vaultGoalId.replace(/^0x/, '').padStart(64, '0') + encodeUint(amountUnits);
+}
+
+export function encodeVaultPauseGoal(vaultGoalId: string) {
+  return '0x1835e74e' + vaultGoalId.replace(/^0x/, '').padStart(64, '0');
+}
+
+export function encodeVaultResumeGoal(vaultGoalId: string) {
+  return '0x398f969b' + vaultGoalId.replace(/^0x/, '').padStart(64, '0');
 }
 
 export async function pollTransaction(txHash: string, chain = 'celo', onUpdate?: (status: string) => void) {

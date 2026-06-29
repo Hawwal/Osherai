@@ -11,9 +11,12 @@ interface Props {
   onDeleteGoal: (goal: SavingsGoal) => void;
   onToggleRoundUp: (goal: SavingsGoal) => void;
   onLogSpend: (goal: SavingsGoal) => void;
+  onPauseGoal: (goal: SavingsGoal) => void;
+  onResumeGoal: (goal: SavingsGoal) => void;
+  onReconcile: () => void;
 }
 
-export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onToggleRoundUp, onLogSpend }: Props) {
+export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onToggleRoundUp, onLogSpend, onPauseGoal, onResumeGoal, onReconcile }: Props) {
   if (!goal) {
     return <div className="flex flex-col h-full" style={{ background: '#f5f5fb' }}><div className="px-5 pt-12"><button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}><ChevronLeft size={18} /></button><h1 className="font-display" style={{ marginTop: 24, fontSize: '1.6rem', fontWeight: 800 }}>Create a goal in AI Chat</h1><p style={{ color: '#6b6b8a', marginTop: 8 }}>Tell Osher what you want to save for, the amount, and the deadline.</p></div></div>;
   }
@@ -54,6 +57,8 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
         <button onClick={() => onDeleteGoal(goal)} disabled={hasBalance} className="py-3.5 rounded-2xl" style={{ background: '#fff5f5', color: '#c0392b', opacity: hasBalance ? 0.45 : 1, fontWeight: 800 }}>{onChainReady ? 'Archive' : 'Delete'}</button>
         <button onClick={() => onToggleRoundUp(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>{goal.roundUpEnabled ? 'Round-up on' : 'Round-up off'}</button>
         <button onClick={() => onLogSpend(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Log spend</button>
+        <button onClick={() => goal.status === 'paused' ? onResumeGoal(goal) : onPauseGoal(goal)} disabled={!onChainReady} className="py-3.5 rounded-2xl" style={{ background: '#f7f7ff', color: '#3d3d6e', opacity: onChainReady ? 1 : 0.45, fontWeight: 800 }}>{goal.status === 'paused' ? 'Resume' : 'Pause'}</button>
+        <button onClick={onReconcile} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Refresh vault</button>
       </div>
 
       <div className="mx-5 rounded-2xl p-4" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
