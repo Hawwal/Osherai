@@ -168,7 +168,7 @@ app.post("/api/auth/verify", async (req, res) => {
   try {
     const { method, contact, name } = normalizeAuthPayload(req.body);
     const token = String(req.body.otp || req.body.token || "").trim();
-    if (token.length < 6) throw new Error("Enter the 6-digit verification code.");
+    if (token.length < 6 || token.length > 8) throw new Error("Enter the verification code from your email.");
 
     if (!isSupabaseAuthConfigured()) {
       return res.json({

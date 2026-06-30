@@ -14,7 +14,9 @@ export function AuthScreen({ onAuth }: Props) {
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const OTP_LENGTH = 8;
+  const emptyOtp = () => Array(OTP_LENGTH).fill("");
+  const [otp, setOtp] = useState<string[]>(() => emptyOtp());
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -35,11 +37,27 @@ export function AuthScreen({ onAuth }: Props) {
   }, [resendCooldown]);
 
   const handleOtpChange = (idx: number, val: string) => {
-    if (val.length > 1) return;
+    const digits = val.replace(/\D/g, "").slice(0, OTP_LENGTH);
+    if (digits.length > 1) {
+      const next = emptyOtp();
+      digits.split("").forEach((digit, i) => {
+        if (idx + i < OTP_LENGTH) next[idx + i] = digit;
+      });
+      setOtp(current => {
+        const merged = [...current];
+        next.forEach((digit, i) => {
+          if (digit) merged[i] = digit;
+        });
+        return merged;
+      });
+      const focusIndex = Math.min(OTP_LENGTH - 1, idx + digits.length);
+      document.getElementById(`otp-${focusIndex}`)?.focus();
+      return;
+    }
     const next = [...otp];
-    next[idx] = val;
+    next[idx] = digits;
     setOtp(next);
-    if (val && idx < 5) {
+    if (digits && idx < OTP_LENGTH - 1) {
       const el = document.getElementById(`otp-${idx + 1}`);
       el?.focus();
     }
@@ -59,7 +77,7 @@ export function AuthScreen({ onAuth }: Props) {
       const result = await startSupabaseOtp(profile());
       setOtpSent(true);
       setResendCooldown(45);
-      setStatus(result.demo ? "Supabase is not configured on this server yet. Use any 6-digit code for local testing." : "Verification code sent. If your email shows a link instead of a code, the Supabase email template still needs the code token enabled.");
+      setStatus(result.demo ? "Supabase is not configured on this server yet. Use any 8-digit code for local testing." : "Verification code sent. Enter the 8-digit code from your email.");
     } catch (err: any) {
       setStatus(err?.message || "Could not send verification code.");
     } finally {
@@ -69,13 +87,13 @@ export function AuthScreen({ onAuth }: Props) {
 
   const resendOtp = async () => {
     if (busy || resendCooldown > 0) return;
-    setOtp(["", "", "", "", "", ""]);
+    setOtp(emptyOtp());
     await sendOtp();
   };
 
   const verifyOtp = async () => {
     const code = otp.join("");
-    if (code.length < 6 || busy) return;
+    if (code.length < OTP_LENGTH || busy) return;
     setBusy(true);
     setStatus("");
     try {
@@ -109,7 +127,7 @@ export function AuthScreen({ onAuth }: Props) {
         </h1>
         <p style={{ color: "#6b6b8a", marginTop: 5, fontSize: "0.875rem", lineHeight: 1.5 }}>
           {otpSent
-            ? `Enter the 6-digit code sent to ${value || (method === "email" ? "your email" : "your phone")}.`
+            ? `Enter the 8-digit code sent to ${value || (method === "email" ? "your email" : "your phone")}.`
             : mode === "signup"
             ? "Join thousands saving smarter with Osher AI."
             : "Sign in to continue your savings journey."}
@@ -232,9 +250,9 @@ export function AuthScreen({ onAuth }: Props) {
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     className="rounded-2xl text-center outline-none"
                     style={{
-                      width: "14%",
+                      width: "11.5%",
                       aspectRatio: "1",
-                      fontSize: "1.4rem",
+                      fontSize: "1.15rem",
                       fontWeight: 800,
                       color: "#0d0d14",
                       background: digit ? "#CCCCF7" : "#fff",
@@ -261,8 +279,8 @@ export function AuthScreen({ onAuth }: Props) {
               style={{
                 background: "#171717", color: "#fff", fontWeight: 700, fontSize: "1rem",
                 fontFamily: "'Bricolage Grotesque', sans-serif",
-                opacity: otp.join("").length === 6 && !busy ? 1 : 0.45,
-                boxShadow: otp.join("").length === 6 ? "0 6px 24px rgba(23,23,23,0.25)" : "none",
+                opacity: otp.join("").length === OTP_LENGTH && !busy ? 1 : 0.45,
+                boxShadow: otp.join("").length === OTP_LENGTH ? "0 6px 24px rgba(23,23,23,0.25)" : "none",
               }}
             >
               {busy ? "Verifying..." : "Verify & Continue"} <ArrowRight size={18} />
