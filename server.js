@@ -108,8 +108,12 @@ function isSupabaseAuthConfigured() {
   return Boolean(config.SUPABASE?.URL && config.SUPABASE?.ANON_KEY);
 }
 
-async function supabaseAuthRequest(pathname, body) {
-  const response = await fetch(`${config.SUPABASE.URL.replace(/\/$/, "")}/auth/v1${pathname}`, {
+async function supabaseAuthRequest(pathname, body, query = {}) {
+  const url = new URL(`${config.SUPABASE.URL.replace(/\/$/, "")}/auth/v1${pathname}`);
+  for (const [key, value] of Object.entries(query)) {
+    if (value) url.searchParams.set(key, value);
+  }
+  const response = await fetch(url.toString(), {
     method: "POST",
     headers: {
       apikey: config.SUPABASE.ANON_KEY,
@@ -152,7 +156,8 @@ app.post("/api/auth/start", async (req, res) => {
     if (method === "email") payload.email = contact;
     else payload.phone = contact;
 
-    await supabaseAuthRequest("/otp", payload);
+    const redirectTo = (config.SERVER?.PUBLIC_URL || "https://osherai.onrender.com").replace(/\/$/, "");
+    await supabaseAuthRequest("/otp", payload, { redirect_to: redirectTo });
     res.json({ success: true, message: "Verification code sent." });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Mail, Phone, ChevronLeft } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import osherLogo from "../../imports/Osher_wallet_logo.png";
@@ -17,6 +17,22 @@ export function AuthScreen({ onAuth }: Props) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    if (!hash.includes("error=")) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const description = params.get("error_description");
+    setStatus(description ? decodeURIComponent(description.replace(/\+/g, " ")) : "The email link could not be verified. Request a fresh code below.");
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setTimeout(() => setResendCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleOtpChange = (idx: number, val: string) => {
     if (val.length > 1) return;
@@ -42,12 +58,19 @@ export function AuthScreen({ onAuth }: Props) {
     try {
       const result = await startSupabaseOtp(profile());
       setOtpSent(true);
-      setStatus(result.demo ? "Supabase is not configured on this server yet. Use any 6-digit code for local testing." : "Verification code sent.");
+      setResendCooldown(45);
+      setStatus(result.demo ? "Supabase is not configured on this server yet. Use any 6-digit code for local testing." : "Verification code sent. If your email shows a link instead of a code, the Supabase email template still needs the code token enabled.");
     } catch (err: any) {
       setStatus(err?.message || "Could not send verification code.");
     } finally {
       setBusy(false);
     }
+  };
+
+  const resendOtp = async () => {
+    if (busy || resendCooldown > 0) return;
+    setOtp(["", "", "", "", "", ""]);
+    await sendOtp();
   };
 
   const verifyOtp = async () => {
@@ -222,9 +245,14 @@ export function AuthScreen({ onAuth }: Props) {
                   />
                 ))}
               </div>
-              <p style={{ fontSize: "0.8rem", color: "#9a9ab8", marginTop: 12, textAlign: "center" }}>
-                Didn't receive it? <span style={{ color: "#171717", fontWeight: 600 }}>Resend code</span>
-              </p>
+              <button
+                onClick={resendOtp}
+                disabled={busy || resendCooldown > 0}
+                className="w-full"
+                style={{ fontSize: "0.8rem", color: busy || resendCooldown > 0 ? "#9a9ab8" : "#171717", marginTop: 12, textAlign: "center", fontWeight: 700 }}
+              >
+                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive it? Resend code"}
+              </button>
             </div>
 
             <button
@@ -239,7 +267,7 @@ export function AuthScreen({ onAuth }: Props) {
             >
               {busy ? "Verifying..." : "Verify & Continue"} <ArrowRight size={18} />
             </button>
-            {status && <p style={{ fontSize: "0.78rem", color: status.includes("failed") ? "#c0392b" : "#6b6b8a", marginTop: 12, textAlign: "center", lineHeight: 1.45 }}>{status}</p>}
+            {status && <p style={{ fontSize: "0.78rem", color: /failed|invalid|expired|could/i.test(status) ? "#c0392b" : "#6b6b8a", marginTop: 12, textAlign: "center", lineHeight: 1.45 }}>{status}</p>}
           </>
         )}
       </div>
