@@ -89,6 +89,7 @@ export type AuthProfile = {
   contact?: string;
   method?: AuthMethod;
   userId?: string;
+  avatarIcon?: string;
 };
 
 export type AppData = {

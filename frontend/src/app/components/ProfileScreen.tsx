@@ -1,8 +1,23 @@
 import { useState } from "react";
-import { ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
+import { Check, ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import osherLogo from "../../imports/Osher_wallet_logo.png";
+import lionIcon from "../../imports/profile-icons/lion.png";
+import wolfIcon from "../../imports/profile-icons/wolf.png";
+import pandaIcon from "../../imports/profile-icons/panda.png";
+import rabbitIcon from "../../imports/profile-icons/rabbit.png";
+import dogIcon from "../../imports/profile-icons/dog.png";
+import hamsterIcon from "../../imports/profile-icons/hamster.png";
+import elephantIcon from "../../imports/profile-icons/elephant.png";
+import koalaIcon from "../../imports/profile-icons/koala.png";
+import foxIcon from "../../imports/profile-icons/fox.png";
+import hedgehogIcon from "../../imports/profile-icons/hedgehog.png";
+import monkeyIcon from "../../imports/profile-icons/monkey.png";
+import turtleIcon from "../../imports/profile-icons/turtle.png";
+import dolphinIcon from "../../imports/profile-icons/dolphin.png";
+import parrotIcon from "../../imports/profile-icons/parrot.png";
 import { AuthProfile, DashboardStats, WalletBalances, WalletInfo, formatNumber, loadStoredAuthProfile, shortAddress } from "../lib/osher";
+
+type AvatarOption = { id: string; label: string; image: string; bg: string; color?: string; text?: string };
 
 interface Props {
   userName?: string;
@@ -25,13 +40,32 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   const [draftName, setDraftName] = useState(profile.name || (userName === "there" ? "" : userName || ""));
   const [draftContact, setDraftContact] = useState(profile.contact || "");
   const [status, setStatus] = useState("");
+  const [selectedIcon, setSelectedIcon] = useState(profile.avatarIcon || "lion");
   const displayName = userName || "there";
   const walletLabel = walletInfo?.address
     ? `${walletInfo.walletType === "minipay" ? "MiniPay" : "MetaMask"} · ${shortAddress(walletInfo.address)}`
     : "No wallet connected";
   const contact = profile.contact || "Contact not set";
+  const avatarOptions: AvatarOption[] = [
+    { id: "lion", label: "Lion", image: lionIcon, bg: "#fff0ea" },
+    { id: "wolf", label: "Wolf", image: wolfIcon, bg: "#f0edff" },
+    { id: "panda", label: "Panda", image: pandaIcon, bg: "#fff0f0" },
+    { id: "rabbit", label: "Rabbit", image: rabbitIcon, bg: "#f0edff" },
+    { id: "dog", label: "Dog", image: dogIcon, bg: "#fff6d6" },
+    { id: "hamster", label: "Hamster", image: hamsterIcon, bg: "#e8f5ff" },
+    { id: "elephant", label: "Elephant", image: elephantIcon, bg: "#f0edff" },
+    { id: "koala", label: "Koala", image: koalaIcon, bg: "#f0edff" },
+    { id: "fox", label: "Fox", image: foxIcon, bg: "#e8f5ff" },
+    { id: "hedgehog", label: "Hedgehog", image: hedgehogIcon, bg: "#fff6d6" },
+    { id: "monkey", label: "Monkey", image: monkeyIcon, bg: "#e8f5ff" },
+    { id: "turtle", label: "Turtle", image: turtleIcon, bg: "#e8f5ff" },
+    { id: "dolphin", label: "Dolphin", image: dolphinIcon, bg: "#e8f5ff" },
+    { id: "parrot", label: "Parrot", image: parrotIcon, bg: "#f0edff" },
+  ];
+  const activeAvatar = avatarOptions.find(item => item.id === selectedIcon) || avatarOptions[0];
+
   const updateProfile = () => {
-    const next = { ...profile, name: draftName.trim(), contact: draftContact.trim() };
+    const next = { ...profile, name: draftName.trim(), contact: draftContact.trim(), avatarIcon: activeAvatar.id };
     setProfile(next);
     onProfileUpdate?.(next);
     setEditing(false);
@@ -77,25 +111,21 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-28" style={{ background: "#f5f5fb", scrollbarWidth: "none" }}>
       {/* Profile card */}
-      <div className="mx-4 mt-12 mb-5 rounded-3xl overflow-hidden" style={{ background: "#171717", boxShadow: "0 6px 24px rgba(23,23,23,0.22)" }}>
-        <div className="p-5">
-          <div style={{ position: "relative" }}>
-            <div style={{ position: "absolute", top: -10, right: -10, width: 100, height: 100, borderRadius: "50%", background: "rgba(204,204,247,0.07)" }} />
-          </div>
-          <div className="flex items-center gap-4 mb-5">
-            <div style={{ width: 60, height: 60, borderRadius: 20, overflow: "hidden", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.15)", flexShrink: 0 }}>
-              <ImageWithFallback
-                src={osherLogo}
-                alt="Osher AI"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
+      <div className="mx-4 mt-8 mb-5 rounded-3xl" style={{ background: "#171717", boxShadow: "0 6px 24px rgba(23,23,23,0.22)", minHeight: 190, overflow: "hidden" }}>
+        <div className="p-5" style={{ position: "relative" }}>
+          <div style={{ position: "absolute", top: -28, right: -20, width: 128, height: 128, borderRadius: "50%", background: "rgba(204,204,247,0.08)", pointerEvents: "none" }} />
+          <div className="flex items-center gap-4 mb-5" style={{ position: "relative", zIndex: 1, minHeight: 74 }}>
+            <div style={{ width: 68, height: 68, borderRadius: 22, overflow: "hidden", background: activeAvatar.bg, color: activeAvatar.color || "#171717", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.15)", flexShrink: 0, fontSize: "1.8rem", fontWeight: 900 }}>
+              {activeAvatar.image ? (
+                <ImageWithFallback src={activeAvatar.image} alt="Profile icon" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : activeAvatar.text}
             </div>
-            <div>
-              <p className="font-display" style={{ fontWeight: 800, fontSize: "1.1rem", color: "#fff", letterSpacing: "-0.01em" }}>{displayName === "there" ? "Osher Saver" : displayName}</p>
-              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{walletLabel}</p>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf75", display: "inline-block" }} />
-                <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>Verified · {Number(dashboard.streakWeeks || 0)}-week streak</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p className="font-display" style={{ fontWeight: 800, fontSize: "1.25rem", color: "#fff", letterSpacing: "-0.01em", lineHeight: 1.2, overflowWrap: "anywhere" }}>{displayName === "there" ? "Osher Saver" : displayName}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.52)", marginTop: 4, overflowWrap: "anywhere" }}>{walletLabel}</p>
+              <div className="flex items-center gap-1.5 mt-2">
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf75", display: "inline-block", flexShrink: 0 }} />
+                <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>{Number(dashboard.streakWeeks || 0)}-week streak</span>
               </div>
             </div>
           </div>
@@ -125,6 +155,17 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
             <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#9a9ab8", textTransform: "uppercase" }}>Email or phone</span>
             <input value={draftContact} onChange={e => setDraftContact(e.target.value)} className="w-full outline-none bg-transparent mt-2" style={{ color: "#0d0d14", fontSize: "1rem", fontWeight: 700 }} />
           </label>
+          <div className="mb-4">
+            <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#9a9ab8", textTransform: "uppercase" }}>Select an icon</span>
+            <div className="grid grid-cols-4 gap-2 mt-2">
+              {avatarOptions.map(option => (
+                <button key={option.id} onClick={() => setSelectedIcon(option.id)} aria-label={option.label} style={{ position: "relative", aspectRatio: "1", borderRadius: 14, background: option.bg, color: option.color || "#171717", display: "flex", alignItems: "center", justifyContent: "center", border: selectedIcon === option.id ? "2px solid #171717" : "1px solid rgba(0,0,0,0.08)", fontSize: "1.15rem", fontWeight: 900, overflow: "hidden" }}>
+                  {option.image ? <ImageWithFallback src={option.image} alt={option.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : option.text}
+                  {selectedIcon === option.id && <span style={{ position: "absolute", right: 3, bottom: 3, width: 16, height: 16, borderRadius: "50%", background: "#171717", color: "#CCCCF7", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={10} /></span>}
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={updateProfile} className="w-full py-3 rounded-2xl" style={{ background: "#171717", color: "#CCCCF7", fontWeight: 800 }}>Save profile</button>
         </div>
       )}

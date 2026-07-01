@@ -36,22 +36,25 @@ export function AuthScreen({ onAuth }: Props) {
     return () => window.clearTimeout(timer);
   }, [resendCooldown]);
 
+  const fillOtpFromText = (text: string, startIndex = 0) => {
+    const digits = text.replace(/\D/g, "").slice(0, OTP_LENGTH);
+    if (!digits) return;
+    setOtp(current => {
+      const next = [...current];
+      digits.split("").forEach((digit, i) => {
+        const index = Math.min(OTP_LENGTH - 1, startIndex + i);
+        next[index] = digit;
+      });
+      return next;
+    });
+    const focusIndex = Math.min(OTP_LENGTH - 1, startIndex + digits.length - 1);
+    document.getElementById(`otp-${focusIndex}`)?.focus();
+  };
+
   const handleOtpChange = (idx: number, val: string) => {
     const digits = val.replace(/\D/g, "").slice(0, OTP_LENGTH);
     if (digits.length > 1) {
-      const next = emptyOtp();
-      digits.split("").forEach((digit, i) => {
-        if (idx + i < OTP_LENGTH) next[idx + i] = digit;
-      });
-      setOtp(current => {
-        const merged = [...current];
-        next.forEach((digit, i) => {
-          if (digit) merged[i] = digit;
-        });
-        return merged;
-      });
-      const focusIndex = Math.min(OTP_LENGTH - 1, idx + digits.length);
-      document.getElementById(`otp-${focusIndex}`)?.focus();
+      fillOtpFromText(digits, idx);
       return;
     }
     const next = [...otp];
@@ -61,6 +64,11 @@ export function AuthScreen({ onAuth }: Props) {
       const el = document.getElementById(`otp-${idx + 1}`);
       el?.focus();
     }
+  };
+
+  const handleOtpPaste = (idx: number, event: React.ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    fillOtpFromText(event.clipboardData.getData("text"), idx);
   };
 
   const profile = (): AuthProfile => ({
@@ -248,6 +256,7 @@ export function AuthScreen({ onAuth }: Props) {
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
+                    onPaste={(e) => handleOtpPaste(idx, e)}
                     className="rounded-2xl text-center outline-none"
                     style={{
                       width: "11.5%",
