@@ -1,7 +1,7 @@
 import { ArrowRight, Clock, ShieldCheck } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import osherLogo from '../../imports/Osher_wallet_logo.png';
-import { WalletInfo, WalletType, isMetaMask, isMiniPay, shortAddress } from '../lib/osher';
+import { WalletInfo, WalletType, isMetaMask, isMiniPay, walletDisplayName, walletReference } from '../lib/osher';
 
 interface Props {
   onConnect: (walletType?: WalletType | 'auto') => void;
@@ -11,7 +11,9 @@ interface Props {
 
 export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
   const connected = Boolean(walletInfo?.address);
-  const loginProof = walletInfo?.loginSignature || walletInfo?.loginTxHash;
+  const inMiniPay = isMiniPay();
+  const providerLabel = walletDisplayName(walletInfo);
+  const reference = walletReference(walletInfo?.address);
 
   return (
     <div className="h-full overflow-y-auto bg-background" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
@@ -23,15 +25,22 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
           <span className="font-display" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0d0d14', letterSpacing: '-0.01em' }}>Osher AI</span>
         </div>
         <h1 className="font-display" style={{ fontSize: '2rem', fontWeight: 800, color: '#0d0d14', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-          Connect your<br />wallet
+          {inMiniPay ? 'MiniPay is ready' : <>Connect your<br />wallet</>}
         </h1>
         <p style={{ color: '#6b6b8a', marginTop: 8, fontSize: '0.875rem', lineHeight: 1.6 }}>
-          Your savings are held non-custodially on Celo. Osher asks for a free login signature after connection; no gas fee or payment is charged.
+          Your savings stay in your own wallet. Every goal deposit or withdrawal asks for your approval and may include a small network fee.
         </p>
       </div>
 
       <div className="px-5 flex flex-col gap-4">
-        <button onClick={() => onConnect('minipay')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden transition-transform active:scale-98" style={{ background: '#171717', opacity: isMiniPay() || !connected ? 1 : 0.92 }}>
+        {inMiniPay && !connected && (
+          <div className="rounded-3xl p-5 text-left" style={{ background: '#171717', color: '#fff', boxShadow: '0 6px 24px rgba(23,23,23,0.2)' }}>
+            <p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>Connecting MiniPay...</p>
+            <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.5 }}>Osher will detect your MiniPay wallet automatically. No separate connect button is needed inside MiniPay.</p>
+          </div>
+        )}
+
+        {!inMiniPay && <button onClick={() => onConnect('minipay')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden transition-transform active:scale-98" style={{ background: '#171717', opacity: isMiniPay() || !connected ? 1 : 0.92 }}>
           <div style={{ position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%', background: 'rgba(204,204,247,0.08)' }} />
           <div className="flex items-center justify-between mb-4 relative z-10">
             <div className="flex items-center gap-3">
@@ -49,22 +58,22 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
             <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', maxWidth: '75%' }}>Primary wallet for MiniPay users on Celo.</p>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}><ArrowRight size={15} color="#fff" /></div>
           </div>
-        </button>
+        </button>}
 
         {connected && (
           <div className="rounded-2xl p-4" style={{ background: '#e8f5ec', border: '1px solid rgba(76,175,117,0.2)' }}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-display" style={{ fontWeight: 800, color: '#0d0d14', fontSize: '0.95rem' }}>Connected</p>
-                <p style={{ fontSize: '0.8rem', color: '#2d7a47', marginTop: 3 }}>{walletInfo?.walletType === 'minipay' ? 'MiniPay' : 'MetaMask'} · {shortAddress(walletInfo?.address)}</p>
-                {loginProof && <p style={{ fontSize: '0.7rem', color: '#6b6b8a', marginTop: 4 }}>Login signature {loginProof.slice(0, 10)}...{loginProof.slice(-8)}</p>}
+                <p style={{ fontSize: '0.8rem', color: '#2d7a47', marginTop: 3 }}>{providerLabel}</p>
+                {reference && <p style={{ fontSize: '0.7rem', color: '#6b6b8a', marginTop: 4 }}>{reference}</p>}
               </div>
               <button onClick={onDisconnect} className="px-3 py-2 rounded-xl flex-shrink-0" style={{ background: '#fff', color: '#2d7a47', fontWeight: 700, fontSize: '0.78rem' }}>Disconnect</button>
             </div>
           </div>
         )}
 
-        <button onClick={() => onConnect('metamask')} className="w-full rounded-3xl p-5 text-left border transition-transform active:scale-98" style={{ background: '#fff', borderColor: 'rgba(0,0,0,0.09)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', opacity: isMetaMask() || !connected ? 1 : 0.92 }}>
+        {!inMiniPay && <button onClick={() => onConnect('metamask')} className="w-full rounded-3xl p-5 text-left border transition-transform active:scale-98" style={{ background: '#fff', borderColor: 'rgba(0,0,0,0.09)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', opacity: isMetaMask() || !connected ? 1 : 0.92 }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: '#fff7ef' }}>
@@ -75,7 +84,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: '#f0f0f9' }}><ArrowRight size={15} color="#6b6b8a" /></div>
           </div>
           <p style={{ fontSize: '0.82rem', color: '#9a9ab8' }}>Fallback wallet for users who already hold Celo stablecoins there.</p>
-        </button>
+        </button>}
 
         <div className="rounded-3xl p-5 border" style={{ background: '#fafafa', borderColor: 'rgba(0,0,0,0.06)', opacity: 0.65 }}>
           <div className="flex items-center justify-between mb-3">

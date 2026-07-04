@@ -4,14 +4,12 @@ export type WalletInfo = {
   address?: string;
   walletType?: WalletType;
   chainId?: number;
-  loginTxHash?: string;
-  loginSignature?: string;
-  loginMessage?: string;
-  loginSignedAt?: string;
+  loginProof?: string;
+  loginProofType?: 'wallet_account';
+  loginLinkedAt?: string;
 };
 
 export type WalletBalances = {
-  celo?: number;
   usdt?: number;
 };
 
@@ -200,32 +198,23 @@ export async function ensureCeloNetwork(networkConfig: NetworkConfig) {
   }
 }
 
-function buildLoginMessage(address: string, walletType: WalletType) {
-  const signedAt = new Date().toISOString();
-  const message = [
-    'Osher AI Login Proof',
-    '',
-    `Wallet: ${address}`,
-    `Wallet type: ${walletType === 'minipay' ? 'MiniPay' : 'MetaMask'}`,
-    `Session: ${SESSION_ID}`,
-    `Timestamp: ${signedAt}`,
-    '',
-    'Signing this message proves you control this wallet.',
-    'No gas fee or payment is charged.',
-  ].join('\n');
-  return { message, signedAt };
+function createWalletSessionProof(address: string) {
+  const linkedAt = new Date().toISOString();
+  const suffix = address ? address.slice(-8).toLowerCase() : Math.random().toString(36).slice(2);
+  return {
+    loginProof: `wallet-account:${suffix}:${Date.now()}`,
+    loginProofType: 'wallet_account' as const,
+    loginLinkedAt: linkedAt,
+  };
 }
 
-function stringToHex(value: string) {
-  return '0x' + Array.from(new TextEncoder().encode(value)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+export function walletDisplayName(walletInfo?: WalletInfo) {
+  if (!walletInfo?.address) return 'No wallet connected';
+  return walletInfo.walletType === 'minipay' ? 'MiniPay connected' : 'MetaMask connected';
 }
 
-export async function requestLoginSignature(address: string, walletType: WalletType) {
-  const ethereum = (window as any).ethereum;
-  if (!ethereum) throw new Error('No wallet provider detected.');
-  const { message, signedAt } = buildLoginMessage(address, walletType);
-  const loginSignature = await ethereum.request({ method: 'personal_sign', params: [stringToHex(message), address] });
-  return { loginSignature, loginMessage: message, loginSignedAt: signedAt };
+export function walletReference(address?: string) {
+  return address ? 'Wallet ending ' + address.slice(-4).toUpperCase() : '';
 }
 
 export async function connectWallet(walletType: WalletType | 'auto', networkConfig: NetworkConfig): Promise<WalletInfo> {
@@ -237,10 +226,9 @@ export async function connectWallet(walletType: WalletType | 'auto', networkConf
   const accounts = await ethereum.request({ method: 'eth_requestAccounts', params: [] });
   const address = accounts?.[0];
   if (!address) throw new Error('No account returned by wallet.');
-  await ensureCeloNetwork(networkConfig);
-  const loginProof = await requestLoginSignature(address, resolved);
+  if (resolved !== 'minipay') await ensureCeloNetwork(networkConfig);
   const chainId = await ethereum.request({ method: 'eth_chainId' });
-  const walletInfo: WalletInfo = { address, walletType: resolved, chainId: parseInt(chainId, 16), ...loginProof };
+  const walletInfo: WalletInfo = { address, walletType: resolved, chainId: parseInt(chainId, 16), ...createWalletSessionProof(address) };
   await apiJson('/api/wallet/connect', { method: 'POST', body: JSON.stringify({ sessionId: SESSION_ID, walletInfo }) }).catch(() => null);
   localStorage.setItem('osher_wallet_info', JSON.stringify(walletInfo));
   localStorage.removeItem('osher_wallet_disconnect_requested');
@@ -348,7 +336,7 @@ export function cleanWalletError(err: any) {
   const message = err?.message || String(err);
   if (err?.code === 4001 || message.toLowerCase().includes('rejected')) return 'Wallet request cancelled.';
   if (message.toLowerCase().includes('insufficient')) return 'Your wallet does not have enough funds for this transaction and network fee.';
-  if (message.toLowerCase().includes('transfer amount exceeds balance')) return 'Your Celo USDT balance is too low for this deposit. Add USDT to your wallet, then try again.';
+  if (message.toLowerCase().includes('transfer amount exceeds balance')) return 'Your USDT balance is too low for this deposit. Add USDT to your wallet, then try again.';
   return message;
 }
 
@@ -392,12 +380,8 @@ export async function readNativeCeloBalance(owner: string): Promise<bigint> {
 }
 
 export async function loadWalletBalances(owner: string, contracts: ContractsConfig): Promise<WalletBalances> {
-  const [celoRaw, usdtRaw] = await Promise.all([
-    readNativeCeloBalance(owner).catch(() => 0n),
-    contracts.savingsToken ? readErc20Balance(contracts.savingsToken, owner).catch(() => 0n) : Promise.resolve(0n),
-  ]);
+  const usdtRaw = contracts.savingsToken ? await readErc20Balance(contracts.savingsToken, owner).catch(() => 0n) : 0n;
   return {
-    celo: Number(formatUnits(celoRaw, 18, 6)),
     usdt: Number(formatUnits(usdtRaw, 6, 6)),
   };
 }

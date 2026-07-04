@@ -64,7 +64,7 @@ async function upsertWallet(userId, walletInfo = {}) {
     celo_address: address,
     wallet_type: walletInfo.walletType || "metamask",
     chain_id: Number(walletInfo.chainId || 42220),
-    login_tx_hash: walletInfo.loginSignature || walletInfo.loginTxHash || null,
+    login_tx_hash: walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || null,
     updated_at: new Date().toISOString(),
   };
 

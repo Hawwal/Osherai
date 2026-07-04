@@ -32,7 +32,7 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
     session.walletAddress = walletInfo.address;
     session.walletType = walletInfo.walletType || "metamask";
     session.chainId = walletInfo.chainId || 42220;
-    session.loginTxHash = walletInfo.loginSignature || walletInfo.loginTxHash || session.loginTxHash;
+    session.loginTxHash = walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || session.loginTxHash;
     session.loginSignature = walletInfo.loginSignature || session.loginSignature;
   }
 
@@ -791,7 +791,7 @@ function createSession(sessionId, walletInfo) {
     walletAddress: walletInfo.address || null,
     walletType: walletInfo.walletType || null,
     chainId: walletInfo.chainId || 42220,
-    loginTxHash: walletInfo.loginSignature || walletInfo.loginTxHash || null,
+    loginTxHash: walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || null,
     loginSignature: walletInfo.loginSignature || null,
     history: [],
     pendingTransaction: null,
@@ -1442,7 +1442,7 @@ async function syncWalletForSession(sessionId, walletInfo = {}) {
     session.walletAddress = walletInfo.address;
     session.walletType = walletInfo.walletType || "metamask";
     session.chainId = walletInfo.chainId || 42220;
-    session.loginTxHash = walletInfo.loginSignature || walletInfo.loginTxHash || session.loginTxHash;
+    session.loginTxHash = walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || session.loginTxHash;
     session.loginSignature = walletInfo.loginSignature || session.loginSignature;
   }
 

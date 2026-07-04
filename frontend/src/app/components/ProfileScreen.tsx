@@ -15,7 +15,7 @@ import monkeyIcon from "../../imports/profile-icons/monkey.png";
 import turtleIcon from "../../imports/profile-icons/turtle.png";
 import dolphinIcon from "../../imports/profile-icons/dolphin.png";
 import parrotIcon from "../../imports/profile-icons/parrot.png";
-import { AuthProfile, DashboardStats, WalletBalances, WalletInfo, formatNumber, loadStoredAuthProfile, shortAddress } from "../lib/osher";
+import { AuthProfile, DashboardStats, WalletBalances, WalletInfo, formatNumber, loadStoredAuthProfile, walletDisplayName, walletReference } from "../lib/osher";
 
 type AvatarOption = { id: string; label: string; image: string; bg: string; color?: string; text?: string };
 
@@ -42,9 +42,8 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   const [status, setStatus] = useState("");
   const [selectedIcon, setSelectedIcon] = useState(profile.avatarIcon || "lion");
   const displayName = userName || "there";
-  const walletLabel = walletInfo?.address
-    ? `${walletInfo.walletType === "minipay" ? "MiniPay" : "MetaMask"} · ${shortAddress(walletInfo.address)}`
-    : "No wallet connected";
+  const walletLabel = walletDisplayName(walletInfo);
+  const walletHint = walletReference(walletInfo?.address);
   const contact = profile.contact || "Contact not set";
   const avatarOptions: AvatarOption[] = [
     { id: "lion", label: "Lion", image: lionIcon, bg: "#fff0ea" },
@@ -77,7 +76,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
       return;
     }
     await navigator.clipboard?.writeText(walletInfo.address).catch(() => null);
-    setStatus("Wallet address copied.");
+    setStatus("Wallet reference copied.");
   };
   const toggleCurrency = () => {
     const nextMode = displayMode === "usdt" ? "local" : "usdt";
@@ -89,7 +88,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
       title: "Account",
       items: [
         { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : `${displayName} · ${contact}`, action: () => setEditing(true) },
-        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletLabel, action: copyWallet },
+        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletHint ? `${walletLabel} · ${walletHint}` : walletLabel, action: copyWallet },
       ],
     },
     {
@@ -104,6 +103,9 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
       title: "Support",
       items: [
         { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Help & Support", sub: "Open Osher AI chat", action: onOpenChat },
+        { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Contact Support", sub: "Email Osher support", action: () => { window.location.href = "mailto:hawwal.ogungbadero@gmail.com?subject=Osher%20AI%20Support"; } },
+        { icon: <Shield size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Terms of Service", sub: "Review usage terms", action: () => window.open("/terms.html", "_blank") },
+        { icon: <Shield size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Privacy Policy", sub: "Review data practices", action: () => window.open("/privacy.html", "_blank") },
       ],
     },
   ];
@@ -122,7 +124,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <p className="font-display" style={{ fontWeight: 800, fontSize: "1.25rem", color: "#fff", letterSpacing: "-0.01em", lineHeight: 1.2, overflowWrap: "anywhere" }}>{displayName === "there" ? "Osher Saver" : displayName}</p>
-              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.52)", marginTop: 4, overflowWrap: "anywhere" }}>{walletLabel}</p>
+              <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.52)", marginTop: 4, overflowWrap: "anywhere" }}>{walletHint ? `${walletLabel} · ${walletHint}` : walletLabel}</p>
               <div className="flex items-center gap-1.5 mt-2">
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4caf75", display: "inline-block", flexShrink: 0 }} />
                 <span style={{ fontSize: "0.72rem", color: "#4caf75", fontWeight: 600 }}>{Number(dashboard.streakWeeks || 0)}-week streak</span>

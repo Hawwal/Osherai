@@ -123,12 +123,11 @@ export default function App() {
   const handleWalletConnect = async (walletType: WalletType | 'auto' = 'auto') => {
     try {
       if (!networkConfig) throw new Error('Celo network config is still loading. Try again in a moment.');
-      setNotice('Requesting wallet access...');
-      setNotice('Waiting for your free login signature. No gas or payment is charged.');
+      setNotice(walletType === 'minipay' || isMiniPay() ? 'Connecting MiniPay...' : 'Requesting wallet access...');
       const info = await connectWallet(walletType, networkConfig);
       setWalletInfo(info);
       setFlow('app');
-      setNotice('Wallet connected and login signature saved.');
+      setNotice('Wallet connected. Deposits and withdrawals will always ask for your approval.');
       await refreshData();
     } catch (err) {
       setNotice(cleanWalletError(err));
@@ -242,10 +241,16 @@ export default function App() {
       const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
       const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
       const ethereum = (window as any).ethereum;
-      setNotice('Checking your Celo USDT balance...');
+      setNotice('Checking your USDT balance...');
       const balanceUnits = await readErc20Balance(data.contracts.savingsToken!, walletInfo.address!);
       if (balanceUnits < amountUnits) {
-        throw new Error(`Your Celo USDT balance is ${formatUnits(balanceUnits, SAVINGS_TOKEN_DECIMALS, 2)} USDT, but this deposit needs ${amount.toFixed(2)} USDT.`);
+        const currentBalance = formatUnits(balanceUnits, SAVINGS_TOKEN_DECIMALS, 2);
+        if (isMiniPay()) {
+          setNotice(`Your USDT balance is ${currentBalance} USDT. Opening MiniPay Deposit...`);
+          window.location.href = 'https://link.minipay.xyz/add_cash?tokens=USDT,USDC,USDm';
+          return;
+        }
+        throw new Error(`Your USDT balance is ${currentBalance} USDT, but this deposit needs ${amount.toFixed(2)} USDT. Use Deposit to add stablecoins, then try again.`);
       }
       setNotice('Approve USDT for the vault...');
       const approveHash = await ethereum.request({
