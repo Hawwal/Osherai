@@ -9,6 +9,11 @@ const { ethers } = require("ethers");
 const OpenAI = require("openai");
 const config = require("../../config/keys");
 const { parseIntent, generateTransactionPreview, explainError } = require("./intentParser");
+const {
+  classifyAgentRoute,
+  shouldAnswerBeforePendingFlow,
+  answerWithAgentBrain,
+} = require("./agentBrain");
 const { validateTransfer } = require("../utils/validator");
 const { getBestBridgeRoute } = require("../bridges/bridgeRouter");
 const {
@@ -35,6 +40,7 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
     session.loginTxHash = walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || session.loginTxHash;
     session.loginSignature = walletInfo.loginSignature || session.loginSignature;
   }
+  if (walletInfo.profileName) session.profileName = String(walletInfo.profileName).trim();
 
   await hydratePersistentSession(session, walletInfo);
   await saveChatTurn(session, "user", userMessage);
@@ -43,6 +49,16 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
 
   try {
     let result;
+    const agentRoute = classifyAgentRoute(userMessage, session);
+    if (shouldUseAgentBrainImmediately(session, agentRoute)) {
+      result = await answerWithAgentBrain(session, userMessage, agentRoute);
+      if (session.state !== "idle" && !isFlowCancelRequest(userMessage)) {
+        result.state = session.state;
+        result.message += `\n\nWhen you're ready, we can continue where we stopped.`;
+      }
+      return await finishChatTurn(session, result);
+    }
+
     if (session.state === "awaiting_confirmation") {
       result = await handleConfirmation(session, userMessage);
       return await finishChatTurn(session, result);
@@ -58,9 +74,16 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
       if (pendingTopUpResult) return await finishChatTurn(session, pendingTopUpResult);
     }
 
+    if (shouldAnswerBeforePendingFlow(agentRoute) && agentRoute.route !== "smalltalk") {
+      result = await answerWithAgentBrain(session, userMessage, agentRoute);
+      return await finishChatTurn(session, result);
+    }
+
     const intent = await parseIntent(userMessage, {
       connectedWallet: walletInfo.address || session.walletAddress,
-      history: session.history.slice(-3),
+      history: session.history.slice(-10),
+      goals: session.goals || [],
+      state: session.state,
     });
 
     session.history.push({ role: "user", content: userMessage });
@@ -668,6 +691,11 @@ async function handleConversationalMessage(session, userMessage) {
     };
   }
 
+  const routeInfo = classifyAgentRoute(userMessage, session);
+  return await answerWithAgentBrain(session, userMessage, routeInfo);
+}
+
+async function handleLegacyConversationalMessage(session, userMessage) {
   if (!config.OPENROUTER_API_KEY || config.OPENROUTER_API_KEY === "YOUR_OPENROUTER_KEY_HERE") {
     return {
       message: "Hey, I'm Osher. I can help you create savings goals, check your balance, and prepare wallet-approved USDT top-ups.",
@@ -793,6 +821,7 @@ function createSession(sessionId, walletInfo) {
     chainId: walletInfo.chainId || 42220,
     loginTxHash: walletInfo.loginProof || walletInfo.loginSignature || walletInfo.loginTxHash || null,
     loginSignature: walletInfo.loginSignature || null,
+    profileName: walletInfo.profileName || null,
     history: [],
     pendingTransaction: null,
     pendingGoalDraft: null,
@@ -1473,6 +1502,23 @@ async function safePersist(label, operation, fallback = null) {
     }
     return fallback;
   }
+}
+
+function shouldUseAgentBrainImmediately(session, routeInfo) {
+  if (!routeInfo) return false;
+  if (session.state === "idle" && !session.pendingGoalDraft && !session.pendingTopUp) {
+    return false;
+  }
+  if (isFlowContinuationRoute(routeInfo)) return false;
+  return shouldAnswerBeforePendingFlow(routeInfo);
+}
+
+function isFlowContinuationRoute(routeInfo) {
+  return new Set(["savings_action", "app_action", "empty"]).has(routeInfo.route);
+}
+
+function isFlowCancelRequest(message) {
+  return isCancelReply(String(message || "").trim().toLowerCase());
 }
 
 async function saveChatTurn(session, role, content, metadata = {}) {

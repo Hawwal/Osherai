@@ -151,7 +151,7 @@ export default function App() {
   const sendMessage = async (message: string) => {
     const response = await apiJson<any>('/api/message', {
       method: 'POST',
-      body: JSON.stringify({ sessionId: SESSION_ID, message, walletInfo }),
+      body: JSON.stringify({ sessionId: SESSION_ID, message, walletInfo: { ...walletInfo, profileName: userDisplayName } }),
     });
     if (response?.data?.goal || response?.data?.goals) await refreshData();
     if (response?.data?.action === 'top_up_goal' && response.data.goalId) {
