@@ -5,23 +5,7 @@
  * responses, and safety-scoped autonomy copy.
  */
 
-const OpenAI = require("openai");
-const config = require("../../config/keys");
-
-const hasApiKey = config.OPENROUTER_API_KEY &&
-  config.OPENROUTER_API_KEY !== "YOUR_OPENROUTER_KEY_HERE";
-
-function createAiClient() {
-  if (!hasApiKey) return null;
-  return new OpenAI({
-    apiKey: config.OPENROUTER_API_KEY,
-    baseURL: "https://openrouter.ai/api/v1",
-    defaultHeaders: {
-      "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-      "X-Title": "Osher AI - Agent Brain v2",
-    },
-  });
-}
+const { createAiClient, getAiModel, getAiProviderConfig } = require("./aiProvider");
 
 function classifyAgentRoute(message, session = {}) {
   const text = String(message || "").trim();
@@ -90,8 +74,8 @@ async function answerWithAgentBrain(session, userMessage, routeInfo = classifyAg
   if (!ai) return fallback;
 
   try {
-    const response = await ai.chat.completions.create({
-      model: config.AI_MODEL || "openrouter/free",
+    const response = await ai.client.chat.completions.create({
+      model: getAiModel(),
       max_tokens: 520,
       temperature: 0.35,
       messages: [
@@ -112,6 +96,7 @@ async function answerWithAgentBrain(session, userMessage, routeInfo = classifyAg
       data: {
         route: routeInfo.route,
         agentBrain: "v2",
+        aiProvider: ai.provider,
       },
     };
   } catch (error) {
@@ -208,7 +193,7 @@ function buildFallbackAnswer(session, userMessage, routeInfo = {}) {
 
   if (routeName === "product_question" && topic === "powered_by") {
     return {
-      message: "Osher AI is powered by the app's configured LLM provider through OpenRouter, plus Osher's own savings tools, Supabase memory, Celo wallet integrations, and vault APIs. The model helps understand language, but Osher's backend decides what actions are safe and what needs wallet approval.",
+      message: `Osher AI is powered by the app's configured AI provider${getAiProviderConfig()?.provider ? ` (${getAiProviderConfig().provider})` : ""}, plus Osher's own savings tools, Supabase memory, Celo wallet integrations, and vault APIs. The model helps understand language, but Osher's backend decides what actions are safe and what needs wallet approval.`,
       state: "idle",
       data: { route: routeName, agentBrain: "v2" },
     };

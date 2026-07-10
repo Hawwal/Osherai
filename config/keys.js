@@ -33,9 +33,13 @@ module.exports = {
     PUBLIC_URL: env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || "http://localhost:3000",
   },
 
-  // ── OpenRouter AI ────────────────────────────────────────────
+  // ── AI Provider ──────────────────────────────────────────────
+  AI_PROVIDER: env.AI_PROVIDER || (env.FIREWORKS_API_KEY ? "fireworks" : "openrouter"),
+  FIREWORKS_API_KEY: env.FIREWORKS_API_KEY || "YOUR_FIREWORKS_KEY_HERE",
   OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY_HERE",
-  AI_MODEL: env.AI_MODEL || "openrouter/free",
+  AI_MODEL: env.AI_MODEL || (env.FIREWORKS_API_KEY
+    ? "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    : "openrouter/free"),
 
   // ── Supabase Persistence ─────────────────────────────────────
   SUPABASE: {

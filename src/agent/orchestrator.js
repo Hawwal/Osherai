@@ -6,7 +6,6 @@
  */
 
 const { ethers } = require("ethers");
-const OpenAI = require("openai");
 const config = require("../../config/keys");
 const { parseIntent, generateTransactionPreview, explainError } = require("./intentParser");
 const {
@@ -693,61 +692,6 @@ async function handleConversationalMessage(session, userMessage) {
 
   const routeInfo = classifyAgentRoute(userMessage, session);
   return await answerWithAgentBrain(session, userMessage, routeInfo);
-}
-
-async function handleLegacyConversationalMessage(session, userMessage) {
-  if (!config.OPENROUTER_API_KEY || config.OPENROUTER_API_KEY === "YOUR_OPENROUTER_KEY_HERE") {
-    return {
-      message: "Hey, I'm Osher. I can help you create savings goals, check your balance, and prepare wallet-approved USDT top-ups.",
-      state: "idle",
-    };
-  }
-
-  try {
-    const ai = new OpenAI({
-      apiKey: config.OPENROUTER_API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: {
-        "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-        "X-Title": "Osher AI",
-      },
-    });
-
-    const conversationHistory = session.history.slice(-6).map(h => ({
-      role: h.role === "user" ? "user" : "assistant",
-      content: h.content,
-    }));
-
-    const response = await ai.chat.completions.create({
-      model: config.AI_MODEL || "openrouter/free",
-      max_tokens: 512,
-      messages: [
-        {
-          role: "system",
-          content: `You are Osher, a friendly Celo savings assistant for users in Nigeria and across Africa.
-Focus on savings goals, progress, balances, and wallet-approved top-ups.
-MiniPay is the primary wallet. MetaMask is the fallback wallet.
-Do not mention or recommend non-Celo wallets, non-Celo chains, staking, or cross-chain flows.
-Never use the word "crypto"; say stablecoins or USDT instead.
-Do not list token names unless the user asks about balances, tokens, or prices.
-Keep responses concise and practical.`,
-        },
-        ...conversationHistory,
-        { role: "user", content: userMessage },
-      ],
-    });
-
-    return {
-      message: response.choices[0].message.content.trim(),
-      state: "idle",
-    };
-  } catch (error) {
-    console.error("[Conversational] AI call failed:", error.message);
-    return {
-      message: "I'm here to help with Celo stablecoin savings. Try checking your balance or telling me what you want to save for.",
-      state: "idle",
-    };
-  }
 }
 
 async function handleTransactionComplete(sessionId, txData) {

@@ -1,28 +1,11 @@
 /**
  * intentParser.js
  * ─────────────────────────────────────────────────────────────────
- * Uses OpenRouter to parse plain-English requests into the small
- * Celo-only intent set used by the Step 1 wallet baseline.
+ * Uses the configured AI provider to parse plain-English requests into
+ * the small Celo-only intent set used by the savings agent.
  */
 
-const OpenAI = require("openai");
-const config = require("../../config/keys");
-
-const hasApiKey = config.OPENROUTER_API_KEY &&
-  config.OPENROUTER_API_KEY !== "YOUR_OPENROUTER_KEY_HERE";
-
-const ai = hasApiKey
-  ? new OpenAI({
-      apiKey: config.OPENROUTER_API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: {
-        "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-        "X-Title": "Osher AI - Celo Savings Agent",
-      },
-    })
-  : null;
-
-const MODEL = config.AI_MODEL || "openrouter/free";
+const { createAiClient, getAiModel } = require("./aiProvider");
 
 const INTENT_SYSTEM_PROMPT = `
 You are an intent parser for Osher AI, a Celo savings agent.
@@ -110,14 +93,15 @@ async function parseIntent(userMessage, sessionContext = {}) {
   const highConfidenceIntent = getHighConfidenceLocalIntent(userMessage);
   if (highConfidenceIntent) return highConfidenceIntent;
 
+  const ai = createAiClient();
   if (ai) {
     try {
       const contextStr = sessionContext.connectedWallet
         ? `\nUser's connected Celo wallet: ${sessionContext.connectedWallet}`
         : "";
 
-      const response = await ai.chat.completions.create({
-        model: MODEL,
+      const response = await ai.client.chat.completions.create({
+        model: getAiModel(),
         max_tokens: 1024,
         messages: [
           { role: "system", content: INTENT_SYSTEM_PROMPT },
@@ -131,13 +115,13 @@ async function parseIntent(userMessage, sessionContext = {}) {
       const rawText = response.choices[0].message.content.trim();
       const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const intent = JSON.parse(cleaned);
-      console.log("[IntentParser] OpenRouter parsed:", JSON.stringify(intent));
+      console.log(`[IntentParser] ${ai.provider} parsed:`, JSON.stringify(intent));
       return normalizeIntent(intent, userMessage);
     } catch (error) {
-      console.warn("[IntentParser] OpenRouter call failed, using local parser:", error.message);
+      console.warn(`[IntentParser] ${ai.provider} call failed, using local parser:`, error.message);
     }
   } else {
-    console.warn("[IntentParser] No OPENROUTER_API_KEY set - using local parser.");
+    console.warn("[IntentParser] No AI provider key set - using local parser.");
   }
 
   return localParseIntent(userMessage);
@@ -392,10 +376,11 @@ function hasBlockedChainTerm(msg) {
 }
 
 async function generateTransactionPreview(intent, bridgeQuote) {
+  const ai = createAiClient();
   if (ai) {
     try {
-      const response = await ai.chat.completions.create({
-        model: MODEL,
+      const response = await ai.client.chat.completions.create({
+        model: getAiModel(),
         max_tokens: 512,
         messages: [
           { role: "system", content: PREVIEW_SYSTEM_PROMPT },
@@ -414,10 +399,11 @@ async function generateTransactionPreview(intent, bridgeQuote) {
 }
 
 async function explainError(errorType, context) {
+  const ai = createAiClient();
   if (ai) {
     try {
-      const response = await ai.chat.completions.create({
-        model: MODEL,
+      const response = await ai.client.chat.completions.create({
+        model: getAiModel(),
         max_tokens: 512,
         messages: [
           { role: "system", content: ERROR_SYSTEM_PROMPT },

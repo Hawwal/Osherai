@@ -210,7 +210,7 @@ Ready for:
 
 - investor demo
 - private beta developer conversations
-- hackathon/demo-day walkthroughs
+- demo-day walkthroughs
 - early wallet/fintech partnership discussions
 
 Not yet ready for:
