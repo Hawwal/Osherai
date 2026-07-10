@@ -67,10 +67,25 @@ Key capabilities:
 
 Documentation:
 
+- `docs/mainnet-evidence.md`
 - `docs/osher-infrastructure.md`
 - `docs/investor-walkthrough.md`
 - `docs/architecture.md`
 - `docs/agent-tool-spec.md`
+
+## Mainnet Evidence
+
+- Savings vault: `0xc1dCD2e711Acf54694aA25437596dfBE042399De`
+- Celoscan: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De
+- Contract source tab: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#code
+- Transactions: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#transactions
+- Evidence checklist: `docs/mainnet-evidence.md`
+
+Print current evidence links:
+
+```bash
+npm run evidence
+```
 
 ## Setup
 ```bash
@@ -115,13 +130,12 @@ POST /api/infra/v1/sandbox/goals/plan
 POST /api/infra/v1/sandbox/vault/deposit-intent
 ```
 
-## Next Build Steps
-- Polish production MiniPay testing and wallet edge cases.
-- Add hosted developer documentation.
-- Add infrastructure rate limits, request analytics, and API key onboarding.
-- Add notification delivery for weekly nudges.
-- Expand SDK examples and agent tool schemas.
-- Add explicit opt-in yield features after the savings MVP is stable.
+## Production Readiness Checklist
+- Verify the savings vault source on Celoscan.
+- Run a complete mainnet savings flow through the app.
+- Record the vault transaction hashes in `docs/mainnet-evidence.md`.
+- Test the SDK example with a real API key.
+- Keep yield and investment features disabled unless explicitly shipped and tested.
 
 ## License
 MIT

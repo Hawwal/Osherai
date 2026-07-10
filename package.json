@@ -18,7 +18,9 @@
     "build": "npm run build:frontend && hardhat compile",
     "start:server": "node server.js",
     "infra:key": "node scripts/generate-infra-api-key.js",
-    "infra:example": "node sdk/osher-js/examples/node-quickstart.js"
+    "infra:example": "node sdk/osher-js/examples/node-quickstart.js",
+    "evidence": "node scripts/evidence-report.js",
+    "infra:agent-demo": "node sdk/osher-js/examples/agent-integration-demo.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",

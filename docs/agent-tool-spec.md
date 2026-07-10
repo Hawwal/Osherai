@@ -94,3 +94,13 @@ POST /api/infra/v1/context/savings-summary
 - Always tell the user when wallet approval is required.
 - Keep explanations short and practical.
 - Use local-currency context when available.
+
+## Example Agent Call
+
+Run the example integration from this repository:
+
+```bash
+OSHER_BASE_URL=https://osherai.onrender.com OSHER_API_KEY=your_key npm run infra:agent-demo
+```
+
+This demonstrates a third-party agent parsing a savings goal, creating a plan, and preparing a wallet-safe deposit intent through Osher Infrastructure.
