@@ -46,7 +46,7 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 
 - Celo Mainnet.
 - USDT primary savings token.
-- cUSD/USDm-compatible architecture for future expansion.
+- cUSD/USDm-compatible architecture for additional stablecoin support.
 - Osher savings vault for goal deposits, withdrawals, round-ups, and agent-controlled sweep permissions.
 
 ## Safety Model
@@ -75,5 +75,4 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 
 ## Current Boundaries
 
-The infrastructure API is private beta. It is suitable for demos and selected integrations, but should add hosted docs, rate limiting, monitoring, and API key onboarding before a public launch.
-The current API includes private-beta key management, request schemas, structured errors, and usage logging. Hosted docs and self-serve onboarding remain future milestones.
+The infrastructure API is private beta and suitable for selected integrations. It includes API-key management, request schemas, structured errors, usage logging, hosted documentation, and rate limiting. Public access should be enabled through the approved developer onboarding flow.

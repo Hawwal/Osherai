@@ -87,10 +87,10 @@ function summarizeGoalPlan(goal) {
   const goalLabel = /goal$/i.test(String(goal.name || "")) ? goal.name : `${goal.name} goal`;
 
   if (goal.displayCurrency === "USD") {
-    return `Got it. I created your ${goalLabel}: save ${formatTokenAmount(goal.targetAmountUSDT)} USDT by ${deadline}.\n\nThat means about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT per week. You can switch the dashboard between USDT and local currency as we build the savings flow.`;
+    return `Got it. I created your ${goalLabel}: save ${formatTokenAmount(goal.targetAmountUSDT)} USDT by ${deadline}.\n\nThat means about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT per week. You can switch the dashboard between USDT and local currency anytime.`;
   }
 
-  return `Got it. I created your ${goalLabel}: save ${targetDisplay} by ${deadline}. That's about ${formatTokenAmount(goal.targetAmountUSDT)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT. The rate is a configurable estimate for now, so we'll plug in a live MiniPay-aligned source in a later step.`;
+  return `Got it. I created your ${goalLabel}: save ${targetDisplay} by ${deadline}. That's about ${formatTokenAmount(goal.targetAmountUSDT)} USDT on Celo.\n\nYour weekly plan is ${weeklyDisplay}/week, about ${formatTokenAmount(goal.weeklyTargetUSDT)} USDT. You can switch between USDT and your local currency anytime.`;
 }
 
 function normalizeDisplayCurrency(currency) {

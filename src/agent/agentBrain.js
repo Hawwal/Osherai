@@ -209,7 +209,7 @@ function buildFallbackAnswer(session, userMessage, routeInfo = {}) {
 
   if (routeName === "product_question") {
     return {
-      message: "Osher AI is a Celo savings agent for MiniPay users in Nigeria and across Africa. I can create savings goals, help set weekly plans, check balances, guide wallet-approved top-ups, send nudges, generate money tips, and explain future yield opportunities in simple language.",
+      message: "Osher AI is a Celo savings agent for MiniPay users in Nigeria and across Africa. I can create savings goals, help set weekly plans, check balances, guide wallet-approved top-ups, send nudges, generate money tips, and explain yield opportunities in simple language when they are available in the app.",
       state: "idle",
       data: { route: routeName, agentBrain: "v2" },
     };
