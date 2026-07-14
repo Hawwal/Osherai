@@ -34,12 +34,9 @@ module.exports = {
   },
 
   // ── AI Provider ──────────────────────────────────────────────
-  AI_PROVIDER: env.AI_PROVIDER || (env.FIREWORKS_API_KEY ? "fireworks" : "openrouter"),
+  AI_PROVIDER: "fireworks",
   FIREWORKS_API_KEY: env.FIREWORKS_API_KEY || "YOUR_FIREWORKS_KEY_HERE",
-  OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || "YOUR_OPENROUTER_KEY_HERE",
-  AI_MODEL: env.AI_MODEL || (env.FIREWORKS_API_KEY
-    ? "accounts/fireworks/models/llama-v3p1-70b-instruct"
-    : "openrouter/free"),
+  AI_MODEL: env.AI_MODEL || "accounts/fireworks/models/llama-v3p1-70b-instruct",
 
   // ── Supabase Persistence ─────────────────────────────────────
   SUPABASE: {

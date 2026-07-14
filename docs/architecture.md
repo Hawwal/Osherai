@@ -71,7 +71,7 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 - Render hosts the Node/Express app and static frontend.
 - Supabase stores production data.
 - Celo contracts hold savings funds.
-- A configurable AI provider powers dynamic goal parsing, coaching, nudges, and tips. Fireworks can be used directly through `FIREWORKS_API_KEY`; OpenRouter remains an optional fallback.
+- Fireworks powers dynamic goal parsing, coaching, nudges, and tips through `FIREWORKS_API_KEY`.
 
 ## Current Boundaries
 

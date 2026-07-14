@@ -1,0 +1,45 @@
+{
+  "name": "Osher AI",
+  "description": "Celo-native savings agent for MiniPay and MetaMask users. Osher creates savings goals, checks wallet balances, prepares wallet-approved USDT vault top-ups, generates nudges and tips, and exposes savings-agent APIs for other builders and agents.",
+  "url": "https://osherai.onrender.com",
+  "provider": {
+    "organization": "Osher Finance",
+    "url": "https://osherai.onrender.com"
+  },
+  "version": "1.0.0",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "celo_savings_coach",
+      "name": "Celo Savings Coach",
+      "description": "Understands savings requests, creates goal plans, and gives contextual savings guidance."
+    },
+    {
+      "id": "wallet_balance_check",
+      "name": "Wallet Balance Check",
+      "description": "Checks Celo wallet balances for CELO and supported stablecoins."
+    },
+    {
+      "id": "vault_deposit_intent",
+      "name": "Vault Deposit Intent",
+      "description": "Prepares user-approved USDT vault top-up instructions for savings goals."
+    },
+    {
+      "id": "developer_infrastructure",
+      "name": "Developer Infrastructure",
+      "description": "Provides APIs for goal parsing, savings plans, nudges, tips, context summaries, and vault deposit intents."
+    }
+  ],
+  "endpoints": {
+    "web": "https://osherai.onrender.com",
+    "api": "https://osherai.onrender.com/api/infra/v1",
+    "openapi": "https://osherai.onrender.com/api/infra/v1/openapi.json",
+    "erc8004Registration": "https://osherai.onrender.com/.well-known/agent-registration.json"
+  }
+}

@@ -5,7 +5,7 @@
  * responses, and safety-scoped autonomy copy.
  */
 
-const { createAiClient, getAiModel, getAiProviderConfig } = require("./aiProvider");
+const { createAiClient, getAiModel } = require("./aiProvider");
 
 function classifyAgentRoute(message, session = {}) {
   const text = String(message || "").trim();
@@ -22,11 +22,11 @@ function classifyAgentRoute(message, session = {}) {
     return route("product_question", 0.96, { topic: "open_source" });
   }
 
-  if (/\b(powered by|what model|which model|open claw|openclaw|cohere|gpt|llm|language model|technology behind)\b/.test(lower)) {
+  if (/\b(powered by|what model|which model|which ai agent|which agent|who am i chatting with|who is communicating|open claw|openclaw|cohere|gpt|llm|language model|technology behind)\b/.test(lower)) {
     return route("product_question", 0.98, { topic: "powered_by" });
   }
 
-  if (/\b(tell me about osher|what is osher|primary functions|what can you do|your purpose|your assignment)\b/.test(lower)) {
+  if (/\b(tell (?:me )?about osher|what is osher|primary functions|what can you do|your purpose|your assignment)\b/.test(lower)) {
     return route("product_question", 0.98, { topic: "about_osher" });
   }
 
@@ -69,9 +69,8 @@ function shouldAnswerBeforePendingFlow(routeInfo) {
 }
 
 async function answerWithAgentBrain(session, userMessage, routeInfo = classifyAgentRoute(userMessage, session)) {
-  const fallback = buildFallbackAnswer(session, userMessage, routeInfo);
   const ai = createAiClient();
-  if (!ai) return fallback;
+  if (!ai) return buildUnavailableAnswer(routeInfo, "Fireworks is not configured");
 
   try {
     const response = await ai.client.chat.completions.create({
@@ -89,7 +88,7 @@ async function answerWithAgentBrain(session, userMessage, routeInfo = classifyAg
     });
 
     const text = response.choices?.[0]?.message?.content?.trim();
-    if (!text) return fallback;
+    if (!text) return buildUnavailableAnswer(routeInfo, "empty model response");
     return {
       message: sanitizeAgentAnswer(text),
       state: "idle",
@@ -100,8 +99,8 @@ async function answerWithAgentBrain(session, userMessage, routeInfo = classifyAg
       },
     };
   } catch (error) {
-    console.warn("[AgentBrain] AI response failed, using fallback:", error.message);
-    return fallback;
+    console.warn("[AgentBrain] AI response failed:", error.message);
+    return buildUnavailableAnswer(routeInfo, error.message);
   }
 }
 
@@ -163,107 +162,13 @@ function buildRecentHistory(session) {
     }));
 }
 
-function buildFallbackAnswer(session, userMessage, routeInfo = {}) {
-  const routeName = routeInfo.route;
-  const topic = routeInfo.topic;
-
-  if (routeName === "unsupported_chain") {
-    return {
-      message: "Osher is Celo-only in this build. I can help with MiniPay or MetaMask, USDT savings goals, wallet-approved top-ups, balances, nudges, and Celo vault activity.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "smalltalk") {
-    return {
-      message: "I'm good, and ready to help you save. I can create a goal, check your balance, explain Osher, or help you top up an existing goal.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "conversation_repair") {
-    return {
-      message: "You're right to call that out. I should answer the question you asked, not force the chat back into an old goal flow. Ask it again in your own words and I'll stay with the thread; if we were creating a goal, we can return to it after.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "product_question" && topic === "powered_by") {
-    return {
-      message: `Osher AI is powered by the app's configured AI provider${getAiProviderConfig()?.provider ? ` (${getAiProviderConfig().provider})` : ""}, plus Osher's own savings tools, Supabase memory, Celo wallet integrations, and vault APIs. The model helps understand language, but Osher's backend decides what actions are safe and what needs wallet approval.`,
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "product_question" && topic === "open_source") {
-    return {
-      message: "Parts of Osher's app and developer-facing code can be made public for builders, but the live service also depends on private environment keys, Supabase, wallet settings, and production infrastructure. I can explain the developer API if you're exploring an integration.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "product_question") {
-    return {
-      message: "Osher AI is a Celo savings agent for MiniPay users in Nigeria and across Africa. I can create savings goals, help set weekly plans, check balances, guide wallet-approved top-ups, send nudges, generate money tips, and explain yield opportunities in simple language when they are available in the app.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "developer_question") {
-    return {
-      message: "To integrate Osher into another app, use Osher Infrastructure APIs for goal parsing, savings plans, nudges, tips, context summaries, and Celo vault deposit intents. Your app keeps its own users and UI; Osher supplies the savings intelligence and wallet-safe action layer.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "autonomy_question") {
-    return {
-      message: "Yes, Osher is designed for scoped autonomy, but with user-set limits. For savings, you would grant a mandate such as goal, amount limit, frequency, and wallet. Osher can then schedule or suggest auto-saves inside those limits. For yield or investment moves, I should analyze and recommend first, then act only after explicit approval or a very clear pre-approved mandate you can revoke.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2", capability: "autonomous_saving_mandate" },
-    };
-  }
-
-  if (routeName === "investment_review") {
-    return {
-      message: "I can review yield opportunities and explain them plainly: expected APY, minimum amount, lockup, risk, and whether they fit your goals. I should not move funds into yield without your approval or a pre-approved low-risk mandate. Emergency savings should stay safer than growth money.",
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
-  if (routeName === "financial_tip") {
-    return {
-      message: buildContextualTip(session),
-      state: "idle",
-      data: { route: routeName, agentBrain: "v2" },
-    };
-  }
-
+function buildUnavailableAnswer(routeInfo = {}, reason = "unavailable") {
+  const routeName = routeInfo.route || "conversation";
   return {
-    message: "I understand. I can help with savings goals, MiniPay or MetaMask balances, wallet-approved top-ups, tips, nudges, and Osher developer integrations. What would you like to do next?",
-    state: "idle",
-    data: { route: routeName || "conversation", agentBrain: "v2" },
+    message: "Osher's live agent brain is temporarily unavailable, so I do not want to give you a fake scripted answer. Please try again in a moment.",
+    state: "error",
+    data: { route: routeName, agentBrain: "v2", aiProvider: "fireworks", reason },
   };
-}
-
-function buildContextualTip(session = {}) {
-  const goals = session.goals || [];
-  const topGoal = goals.find(goal => goal.status === "active") || goals[0];
-  if (!topGoal) {
-    return "Start with one small goal and a weekly amount you can repeat. A simple 5 USDT/week target is better than a big plan you abandon after two weeks.";
-  }
-
-  const remaining = Math.max(0, Number(topGoal.targetAmountUSDT || 0) - Number(topGoal.currentAmountUSDT || 0));
-  const weekly = Number(topGoal.weeklyTargetUSDT || 0);
-  return `${topGoal.name} still needs about ${remaining.toFixed(2)} USDT. If the weekly target feels heavy, split it into smaller MiniPay top-ups during the week; consistency matters more than one large deposit.`;
 }
 
 function sanitizeAgentAnswer(text) {

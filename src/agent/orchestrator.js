@@ -317,11 +317,15 @@ async function handleBalanceCheck(session, intent) {
   try {
     const provider = new ethers.JsonRpcProvider(config.RPC.CELO);
     const balances = [];
+    const requestedToken = canonicalBalanceToken(intent.token);
+    const wantsAll = requestedToken === "ALL";
 
-    const celoWei = await provider.getBalance(address);
-    const celoBalance = parseFloat(ethers.formatEther(celoWei));
-    if (celoBalance > 0.0001) {
-      balances.push({ symbol: "CELO", amount: celoBalance.toFixed(4) });
+    if (wantsAll || requestedToken === "CELO") {
+      const celoWei = await provider.getBalance(address);
+      const celoBalance = parseFloat(ethers.formatEther(celoWei));
+      if (celoBalance > 0.0001 || requestedToken === "CELO") {
+        balances.push({ symbol: "CELO", amount: celoBalance.toFixed(4) });
+      }
     }
 
     const ERC20_ABI = [
@@ -329,8 +333,8 @@ async function handleBalanceCheck(session, intent) {
       "function decimals() view returns (uint8)",
     ];
 
-    const tokenNames = intent.token && intent.token !== "all"
-      ? [intent.token]
+    const tokenNames = !wantsAll && requestedToken !== "CELO"
+      ? [requestedToken]
       : ["USDT", "USDC", "USDm"];
 
     for (const name of tokenNames) {
@@ -344,7 +348,7 @@ async function handleBalanceCheck(session, intent) {
           contract.decimals(),
         ]);
         const amount = parseFloat(ethers.formatUnits(raw, decimals));
-        if (amount > 0.0001) balances.push({ symbol: name, amount: amount.toFixed(2) });
+        if (amount > 0.0001 || !wantsAll) balances.push({ symbol: name, amount: amount.toFixed(6).replace(/\.?0+$/, "") || "0" });
       } catch {
         // Token may not be deployed on the configured testnet.
       }
@@ -672,13 +676,6 @@ async function handleConversationalMessage(session, userMessage) {
     };
   }
 
-  if (isSmallTalk(lower)) {
-    return {
-      message: "I'm good, and ready to help you save. Want to create a goal, check your balance, or top up an existing goal?",
-      state: "idle",
-    };
-  }
-
   if (isReadyToTopUp(lower) && (session.goals || []).length) {
     const goal = (session.goals || [])[0];
     session.pendingTopUp = { goalId: goal.id };
@@ -739,6 +736,15 @@ function getExplorerUrl(chain, txHash) {
     arbitrum: `https://arbiscan.io/tx/${txHash}`,
   };
   return explorers[chain.toLowerCase()] || `https://celoscan.io/tx/${txHash}`;
+}
+
+function canonicalBalanceToken(token) {
+  const value = String(token || "all").toLowerCase();
+  if (value === "usdt") return "USDT";
+  if (value === "usdc") return "USDC";
+  if (value === "usdm") return "USDm";
+  if (value === "celo") return "CELO";
+  return "ALL";
 }
 
 function hasBlockedChainTerm(text) {

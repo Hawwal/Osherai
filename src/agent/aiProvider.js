@@ -2,24 +2,19 @@
  * aiProvider.js
  * ─────────────────────────────────────────────────────────────────
  * Shared OpenAI-compatible AI provider client for Osher.
- * Supports Fireworks directly, with OpenRouter as an optional fallback.
+ * Uses Fireworks directly for Osher's live agent responses.
  */
 
 const OpenAI = require("openai");
 const config = require("../../config/keys");
 
 const FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1";
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const FIREWORKS_DEFAULT_MODEL = "accounts/fireworks/models/llama-v3p1-70b-instruct";
 
 function getAiProviderConfig() {
-  const requestedProvider = String(config.AI_PROVIDER || "").toLowerCase();
   const fireworksKey = cleanKey(config.FIREWORKS_API_KEY, "YOUR_FIREWORKS_KEY_HERE");
-  const openRouterKey = cleanKey(config.OPENROUTER_API_KEY, "YOUR_OPENROUTER_KEY_HERE");
 
-  if (requestedProvider === "fireworks") return fireworksKey ? fireworksConfig(fireworksKey) : null;
-  if (requestedProvider === "openrouter") return openRouterKey ? openRouterConfig(openRouterKey) : null;
   if (fireworksKey) return fireworksConfig(fireworksKey);
-  if (openRouterKey) return openRouterConfig(openRouterKey);
   return null;
 }
 
@@ -40,7 +35,9 @@ function createAiClient() {
 function getAiModel() {
   const provider = getAiProviderConfig();
   if (!provider) return config.AI_MODEL || "local";
-  return config.AI_MODEL || provider.defaultModel;
+  const configuredModel = String(config.AI_MODEL || "").trim();
+  if (configuredModel && /^accounts\/fireworks\/models\//.test(configuredModel)) return configuredModel;
+  return provider.defaultModel;
 }
 
 function fireworksConfig(apiKey) {
@@ -48,20 +45,7 @@ function fireworksConfig(apiKey) {
     provider: "fireworks",
     apiKey,
     baseURL: FIREWORKS_BASE_URL,
-    defaultModel: "accounts/fireworks/models/llama-v3p1-70b-instruct",
-  };
-}
-
-function openRouterConfig(apiKey) {
-  return {
-    provider: "openrouter",
-    apiKey,
-    baseURL: OPENROUTER_BASE_URL,
-    defaultModel: "openrouter/free",
-    defaultHeaders: {
-      "HTTP-Referer": config.SERVER?.PUBLIC_URL || "http://localhost:3000",
-      "X-Title": "Osher AI",
-    },
+    defaultModel: FIREWORKS_DEFAULT_MODEL,
   };
 }
 

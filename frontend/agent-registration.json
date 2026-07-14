@@ -1,12 +1,20 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Osher AI",
-  "description": "An intent-based cross-chain transfer agent. Send tokens across blockchains conversationally - just say where to send and Osher AI handles routing, bridging, and execution automatically.",
+  "description": "A Celo-native savings agent for MiniPay and MetaMask users. Osher AI creates savings goals, checks Celo wallet balances, prepares wallet-approved USDT vault top-ups, generates nudges and tips, and exposes savings-agent APIs for other builders and agents.",
   "image": "https://osherai.onrender.com/logo.svg",
   "services": [
     {
       "name": "web",
       "endpoint": "https://osherai.onrender.com"
+    },
+    {
+      "name": "developer-api",
+      "endpoint": "https://osherai.onrender.com/api/infra/v1"
+    },
+    {
+      "name": "openapi",
+      "endpoint": "https://osherai.onrender.com/api/infra/v1/openapi.json"
     }
   ],
   "x402Support": false,
