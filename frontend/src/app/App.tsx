@@ -83,7 +83,6 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [actionSheet, setActionSheet] = useState<ActionSheet>(null);
   const [sheetValue, setSheetValue] = useState('');
-  const [miniPayLaunchProofRequested, setMiniPayLaunchProofRequested] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState(() => getUserDisplayName());
 
   const selectedGoal = useMemo(() => data.goals.find(goal => goal.id === selectedGoalId) || data.goals[0], [data.goals, selectedGoalId]);
@@ -107,10 +106,32 @@ export default function App() {
   }, [notice]);
 
   useEffect(() => {
-    if (!networkConfig || miniPayLaunchProofRequested || !isMiniPay() || hasManualWalletDisconnect()) return;
-    setMiniPayLaunchProofRequested(true);
-    handleWalletConnect('minipay');
-  }, [networkConfig, miniPayLaunchProofRequested]);
+    if (!networkConfig || !walletInfo.address || hasManualWalletDisconnect()) return;
+    const ethereum = (window as any).ethereum;
+    if (!ethereum?.request) return;
+    let cancelled = false;
+    ethereum.request({ method: 'eth_accounts' })
+      .then(async (accounts: string[] = []) => {
+        if (cancelled) return;
+        const activeAddress = accounts?.[0];
+        if (!activeAddress) {
+          clearStoredWallet();
+          setWalletInfo({});
+          setNotice('Wallet access changed. Connect your current wallet to continue.');
+          return;
+        }
+        if (activeAddress.toLowerCase() !== walletInfo.address!.toLowerCase()) {
+          const walletType = isMiniPay() ? 'minipay' : 'metamask';
+          const info = await connectWallet(walletType, networkConfig);
+          if (!cancelled) {
+            setWalletInfo(info);
+            setNotice('Updated to the wallet currently connected in this browser.');
+          }
+        }
+      })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [networkConfig, walletInfo.address]);
 
   const refreshData = async () => {
     const next = await loadAppData(walletInfo, displayMode);
@@ -124,7 +145,7 @@ export default function App() {
   const handleWalletConnect = async (walletType: WalletType | 'auto' = 'auto') => {
     try {
       if (!networkConfig) throw new Error('Celo network config is still loading. Try again in a moment.');
-      setNotice(walletType === 'minipay' || isMiniPay() ? 'Connecting MiniPay...' : 'Requesting wallet access...');
+      setNotice(walletType === 'minipay' || isMiniPay() ? 'MiniPay will ask you to allow Osher AI to view your wallet address.' : 'Your wallet will ask you to allow Osher AI to view your wallet address.');
       const info = await connectWallet(walletType, networkConfig);
       setWalletInfo(info);
       setFlow('app');

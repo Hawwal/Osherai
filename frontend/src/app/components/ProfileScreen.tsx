@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut } from "lucide-react";
+import { Check, ChevronRight, User, Wallet, Bell, Shield, DollarSign, HelpCircle, LogOut, Copy, X } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import lionIcon from "../../imports/profile-icons/lion.png";
 import wolfIcon from "../../imports/profile-icons/wolf.png";
@@ -41,6 +41,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   const [draftContact, setDraftContact] = useState(profile.contact || "");
   const [status, setStatus] = useState("");
   const [selectedIcon, setSelectedIcon] = useState(profile.avatarIcon || "lion");
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
   const displayName = userName || "there";
   const walletLabel = walletDisplayName(walletInfo);
   const walletHint = walletReference(walletInfo?.address);
@@ -70,13 +71,25 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
     setEditing(false);
     setStatus("Profile saved.");
   };
+  const openWalletMenu = () => {
+    if (!walletInfo?.address) {
+      setStatus("Connect MiniPay or MetaMask first.");
+      return;
+    }
+    setWalletMenuOpen(true);
+  };
   const copyWallet = async () => {
     if (!walletInfo?.address) {
-      window.alert("Connect MiniPay or MetaMask first.");
+      setStatus("Connect MiniPay or MetaMask first.");
       return;
     }
     await navigator.clipboard?.writeText(walletInfo.address).catch(() => null);
-    setStatus("Wallet reference copied.");
+    setWalletMenuOpen(false);
+    setStatus("Wallet address copied.");
+  };
+  const disconnectFromMenu = () => {
+    setWalletMenuOpen(false);
+    onDisconnect?.();
   };
   const toggleCurrency = () => {
     const nextMode = displayMode === "usdt" ? "local" : "usdt";
@@ -88,7 +101,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
       title: "Account",
       items: [
         { icon: <User size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Personal Details", sub: displayName === "there" ? "Profile name not set" : `${displayName} · ${contact}`, action: () => setEditing(true) },
-        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletHint ? `${walletLabel} · ${walletHint}` : walletLabel, action: copyWallet },
+        { icon: <Wallet size={16} />, bg: "#e8e8ff", ic: "#4040b0", label: "Connected Wallets", sub: walletHint ? `${walletLabel} · ${walletHint}` : walletLabel, action: openWalletMenu },
       ],
     },
     {
@@ -172,6 +185,28 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
         </div>
       )}
       {status && <p className="mx-4 mb-3" style={{ color: "#2d7a47", fontSize: "0.78rem", fontWeight: 700 }}>{status}</p>}
+
+      {walletMenuOpen && (
+        <div className="mx-4 mb-4 rounded-2xl p-4" style={{ background: "#fff", boxShadow: "0 8px 26px rgba(0,0,0,0.10)", border: "1px solid rgba(0,0,0,0.06)" }}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontWeight: 800, fontSize: "0.95rem", color: "#0d0d14" }}>Connected wallet</p>
+              <p style={{ fontSize: "0.76rem", color: "#9a9ab8", marginTop: 3, overflowWrap: "anywhere" }}>{walletInfo?.address || "No wallet connected"}</p>
+            </div>
+            <button onClick={() => setWalletMenuOpen(false)} aria-label="Close wallet menu" style={{ width: 32, height: 32, borderRadius: 12, background: "#f5f5fb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <X size={15} color="#6b6b8a" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={copyWallet} className="py-3 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#f5f5fb", color: "#171717", fontWeight: 800, fontSize: "0.82rem" }}>
+              <Copy size={15} /> Copy address
+            </button>
+            <button onClick={disconnectFromMenu} className="py-3 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#fff5f5", color: "#c0392b", fontWeight: 800, fontSize: "0.82rem", border: "1px solid rgba(192,57,43,0.12)" }}>
+              <LogOut size={15} /> Disconnect
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Currency toggle */}
       <div className="mx-4 mb-4 rounded-2xl p-4 flex items-center justify-between" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>

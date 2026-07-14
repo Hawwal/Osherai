@@ -34,10 +34,16 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
 
       <div className="px-5 flex flex-col gap-4">
         {inMiniPay && !connected && (
-          <div className="rounded-3xl p-5 text-left" style={{ background: '#171717', color: '#fff', boxShadow: '0 6px 24px rgba(23,23,23,0.2)' }}>
-            <p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>Connecting MiniPay...</p>
-            <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.5 }}>Osher will detect your MiniPay wallet automatically. No separate connect button is needed inside MiniPay.</p>
-          </div>
+          <button onClick={() => onConnect('minipay')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden transition-transform active:scale-98" style={{ background: '#171717', color: '#fff', boxShadow: '0 6px 24px rgba(23,23,23,0.2)' }}>
+            <div style={{ position: 'absolute', top: -40, right: -40, width: 140, height: 140, borderRadius: '50%', background: 'rgba(204,204,247,0.08)' }} />
+            <div className="flex items-center justify-between gap-4 relative z-10">
+              <div>
+                <p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>Connect MiniPay</p>
+                <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 1.5 }}>Tap to let Osher AI request access to your MiniPay wallet address. Deposits and withdrawals still require separate approval.</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }}><ArrowRight size={16} color="#fff" /></div>
+            </div>
+          </button>
         )}
 
         {!inMiniPay && <button onClick={() => onConnect('minipay')} className="w-full rounded-3xl p-5 text-left relative overflow-hidden transition-transform active:scale-98" style={{ background: '#171717', opacity: isMiniPay() || !connected ? 1 : 0.92 }}>
