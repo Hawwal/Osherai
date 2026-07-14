@@ -42,7 +42,7 @@ function classifyAgentRoute(message, session = {}) {
     return route("investment_review", 0.91);
   }
 
-  if (/\b(tip|advice|advise|recommend|recommendation|how can i save|save more|financial tip|money management)\b/.test(lower)) {
+  if (isAdviceSeeking(lower)) {
     return route("financial_tip", 0.88);
   }
 
@@ -140,7 +140,10 @@ Developer/platform policy:
 Conversation style:
 - Warm, concise, intelligent, and specific.
 - Answer the user's actual question first.
+- Keep continuity with the current thread. Do not restart with "Hi {name}" on every turn.
+- Use the user's name sparingly, mainly in the first greeting or milestone moments.
 - If a savings action is needed, ask one clear next question or state the next app action.
+- If the user asks for savings advice, give useful guidance first. Do not jump into goal creation unless they clearly ask to create/start a goal.
 - Do not get stuck in an old flow if the user asks a new product question.
 
 Context:
@@ -189,7 +192,12 @@ function isSmallTalk(value) {
 }
 
 function isActionLanguage(lower) {
+  if (isAdviceSeeking(lower)) return false;
   return /\b(save|create.*goal|start.*goal|top\s*up|deposit|withdraw|check.*balance|show.*goals|round[-\s]?up|log.*spend)\b/.test(lower);
+}
+
+function isAdviceSeeking(lower) {
+  return /\b(tips?|advice|advise|recommend|recommendation|how can i save|how should i save|how best to save|best way to save|save better|save more|financial tips?|money management|saving strategy|savings strategy|before (?:making a decision|setting|creating|starting).{0,40}goal)\b/.test(lower);
 }
 
 function hasBlockedChainTerm(text) {

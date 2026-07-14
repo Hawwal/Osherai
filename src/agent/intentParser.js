@@ -70,7 +70,8 @@ Rules:
 - Supported chain is always "celo".
 - Only accept EVM addresses with 0x + 40 hex chars.
 - If the user asks for a non-Celo chain or wallet, return conversational and explain that Osher is now Celo-only.
-- For savings goal language like "save", "help me save", "goal", "rent", "school fees", "emergency fund", return savings_goal_draft.
+- For explicit goal creation language like "create a goal", "start a goal", "save 150,000 naira for rent by December", return savings_goal_draft.
+- If the user asks for savings tips, advice, strategy, or how best to save before creating a goal, return conversational.
 - If a transfer has amount but no address, return clarification_needed for toAddress.
 - If a transfer has address but no amount, return clarification_needed for amount.
 `;
@@ -128,6 +129,10 @@ async function parseIntent(userMessage, sessionContext = {}) {
 }
 
 function normalizeIntent(intent, originalMessage) {
+  if (isAdviceSeeking(originalMessage)) {
+    return { type: "conversational", originalMessage };
+  }
+
   if (isSavingsGoalMessage(originalMessage) && intent?.type !== "query") {
     return localParseIntent(originalMessage);
   }
@@ -168,6 +173,10 @@ function getHighConfidenceLocalIntent(message) {
     return localParseIntent(message);
   }
 
+  if (isAdviceSeeking(msg)) {
+    return { type: "conversational", originalMessage: message };
+  }
+
   if (isSavingsGoalMessage(msg)) {
     return localParseIntent(message);
   }
@@ -195,6 +204,10 @@ function localParseIntent(message) {
     "thank you",
   ];
   const isConversational = conversationalWords.some(w => msg.includes(w)) || msg.length < 10;
+
+  if (isAdviceSeeking(msg)) {
+    return { type: "conversational", originalMessage: message };
+  }
 
   const goalQueryWords = [
     "show my goals",
@@ -325,10 +338,16 @@ function localParseIntent(message) {
 
 function isSavingsGoalMessage(message) {
   const msg = String(message || "").toLowerCase();
+  if (isAdviceSeeking(msg)) return false;
   const hasSavingsVerb = /\b(save|saving|savings|goal|target|stash|keep aside)\b/.test(msg);
   const hasGoalContext = /\b(rent|school fees|tuition|emergency fund|emergency|travel|trip|gadget|phone|laptop)\b/.test(msg);
   const isPureQuery = /\b(show|list|view|check|see)\b/.test(msg) && /\bgoals?\b/.test(msg) && !/\b(create|start|new|save)\b/.test(msg);
   return !isPureQuery && (hasSavingsVerb || (hasGoalContext && extractAmount(msg)));
+}
+
+function isAdviceSeeking(message) {
+  const msg = String(message || "").toLowerCase();
+  return /\b(tips?|advice|advise|recommend|recommendation|how can i save|how should i save|how best to save|best way to save|save better|save more|financial tips?|money management|saving strategy|savings strategy|before (?:making a decision|setting|creating|starting).{0,40}goal)\b/.test(msg);
 }
 
 function extractAmount(msg) {
