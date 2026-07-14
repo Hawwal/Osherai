@@ -13,6 +13,7 @@ const {
   shouldAnswerBeforePendingFlow,
   answerWithAgentBrain,
 } = require("./agentBrain");
+const { planAgentAction } = require("./agentPlanner");
 const { validateTransfer } = require("../utils/validator");
 const { getBestBridgeRoute } = require("../bridges/bridgeRouter");
 const {
@@ -48,18 +49,16 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
 
   try {
     let result;
-    const agentRoute = classifyAgentRoute(userMessage, session);
-    if (shouldUseAgentBrainImmediately(session, agentRoute)) {
-      result = await answerWithAgentBrain(session, userMessage, agentRoute);
-      if (session.state !== "idle" && !isFlowCancelRequest(userMessage)) {
-        result.state = session.state;
-        result.message += `\n\nWhen you're ready, we can continue where we stopped.`;
-      }
-      return await finishChatTurn(session, result);
-    }
 
     if (session.state === "awaiting_confirmation") {
       result = await handleConfirmation(session, userMessage);
+      return await finishChatTurn(session, result);
+    }
+
+    const planned = await safePlanAgentAction(session, userMessage);
+    if (planned) {
+      session.history.push({ role: "user", content: userMessage });
+      result = await executePlannedAction(session, enhancePlanWithLocalSignals(planned, userMessage), userMessage);
       return await finishChatTurn(session, result);
     }
 
@@ -73,6 +72,7 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
       if (pendingTopUpResult) return await finishChatTurn(session, pendingTopUpResult);
     }
 
+    const agentRoute = classifyAgentRoute(userMessage, session);
     if (shouldAnswerBeforePendingFlow(agentRoute) && agentRoute.route !== "smalltalk") {
       result = await answerWithAgentBrain(session, userMessage, agentRoute);
       return await finishChatTurn(session, result);
@@ -125,6 +125,263 @@ async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
     };
     return await finishChatTurn(session, result);
   }
+}
+
+async function safePlanAgentAction(session, userMessage) {
+  try {
+    const plan = await planAgentAction(session, userMessage);
+    if (plan) {
+      console.log(`[AgentPlanner] action=${plan.action} confidence=${plan.confidence}`);
+    }
+    return plan;
+  } catch (error) {
+    console.warn("[AgentPlanner] Planning failed, falling back to legacy parser:", error.message);
+    return null;
+  }
+}
+
+async function executePlannedAction(session, plan, userMessage) {
+  switch (plan.action) {
+    case "answer":
+      return {
+        message: plan.reply || (await answerWithAgentBrain(session, userMessage, classifyAgentRoute(userMessage, session))).message,
+        state: "idle",
+        data: { plannerAction: "answer", agentPlanner: "v1" },
+      };
+
+    case "ask_clarification":
+      return {
+        message: plan.reply || buildPlannerClarification(plan),
+        state: "idle",
+        data: { plannerAction: "ask_clarification", missingFields: plan.missingFields || [], agentPlanner: "v1" },
+      };
+
+    case "check_balance":
+      return await handleBalanceCheck(session, {
+        type: "query",
+        queryType: "balance_check",
+        token: plan.balance?.token || "all",
+        chain: "celo",
+      });
+
+    case "show_goals":
+      return await handleGoalsCheck(session);
+
+    case "prepare_deposit":
+      return await executePlannerDeposit(session, plan);
+
+    case "create_goal":
+      return await executePlannerGoalCreation(session, plan, userMessage);
+
+    default:
+      return await answerWithAgentBrain(session, userMessage, classifyAgentRoute(userMessage, session));
+  }
+}
+
+async function executePlannerGoalCreation(session, plan, userMessage) {
+  if (!session.goals) session.goals = [];
+
+  const goalInput = plan.goal || {};
+  const depositAmount = Number(plan.deposit?.amountUSDT || 0);
+  const goalName = goalInput.name || plan.deposit?.goalName || "";
+  let targetAmount = Number(goalInput.targetAmount || 0);
+
+  if ((!Number.isFinite(targetAmount) || targetAmount <= 0) && depositAmount > 0 && isLikelyTestGoal(goalName, userMessage)) {
+    targetAmount = depositAmount;
+  }
+
+  const missing = [];
+  if (!goalName) missing.push("goal name");
+  if (!Number.isFinite(targetAmount) || targetAmount <= 0) missing.push("target amount");
+  if (!goalInput.deadlineText) missing.push("deadline");
+
+  if (missing.length) {
+    return {
+      message: plan.reply || `I can create that goal. I only need the ${missing.join(", ")}.`,
+      state: "idle",
+      data: { plannerAction: "ask_clarification", missingFields: missing, agentPlanner: "v1" },
+    };
+  }
+
+  const draft = {
+    amount: targetAmount,
+    currency: goalInput.currency || "USD",
+    deadlineText: goalInput.deadlineText,
+    purpose: goalName,
+    originalMessage: userMessage,
+  };
+
+  let goal = createSavingsGoalPlan(draft, session.goals || []);
+  goal = {
+    ...goal,
+    name: titleCase(goalName),
+    category: normalizeGoalCategory(goalInput.category || goal.category),
+    categoryLabel: titleCase(normalizeGoalCategory(goalInput.category || goal.category)),
+  };
+
+  const savedGoal = await safePersist(
+    "save planner goal",
+    () => persistence.saveGoal(session.userId, goal),
+    goal
+  );
+  session.goals = upsertGoal(session.goals, savedGoal);
+  session.pendingGoalDraft = null;
+  session.pendingTopUp = null;
+  session.state = "idle";
+
+  await safePersist("log planner goal creation", () => persistence.logAgentAction(session.userId, {
+    goalId: savedGoal.id,
+    type: "goal_created",
+    amountUSDT: savedGoal.targetAmountUSDT,
+    message: `${savedGoal.name} created by Osher AI.`,
+  }));
+
+  const targetLine = savedGoal.displayCurrency === "USD"
+    ? `${formatTokenAmount(savedGoal.targetAmountUSDT)} USDT`
+    : `${formatDisplayAmount(savedGoal.targetAmountDisplay, savedGoal.displayCurrency)} (~${formatTokenAmount(savedGoal.targetAmountUSDT)} USDT)`;
+  const deadlineLine = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(savedGoal.deadline));
+
+  let message = plan.reply || `Done — I created **${savedGoal.name}** with a target of **${targetLine}** by **${deadlineLine}**.`;
+  const data = {
+    plannerAction: "create_goal",
+    goal: savedGoal,
+    goals: session.goals,
+    goalId: savedGoal.id,
+    agentPlanner: "v1",
+  };
+
+  if (depositAmount > 0) {
+    data.amountUSDT = depositAmount;
+    data.suggestedTopUpUSDT = depositAmount;
+    data.action = savedGoal.vaultGoalCreated ? "top_up_goal" : "open_goal_setup";
+    message += savedGoal.vaultGoalCreated
+      ? `\n\nI’ll prepare your **${formatTokenAmount(depositAmount)} USDT** top-up now. Your wallet will ask you to approve it.`
+      : `\n\nTo deposit **${formatTokenAmount(depositAmount)} USDT** now, open this goal, create its vault in your wallet, then top it up.`;
+  }
+
+  return {
+    message,
+    state: "idle",
+    data,
+  };
+}
+
+async function executePlannerDeposit(session, plan) {
+  const amountUSDT = Number(plan.deposit?.amountUSDT || 0);
+  if (!Number.isFinite(amountUSDT) || amountUSDT <= 0) {
+    return {
+      message: plan.reply || "How much USDT would you like to top up?",
+      state: "idle",
+      data: { plannerAction: "ask_clarification", missingFields: ["deposit amount"], agentPlanner: "v1" },
+    };
+  }
+
+  const goal = findGoalForPlannerDeposit(session, plan.deposit);
+  if (!goal) {
+    return {
+      message: plan.reply || "Which savings goal should I top up?",
+      state: "idle",
+      data: { plannerAction: "ask_clarification", missingFields: ["goal"], agentPlanner: "v1" },
+    };
+  }
+
+  return {
+    message: goal.vaultGoalCreated
+      ? (plan.reply || `Great — I’ll prepare a **${formatTokenAmount(amountUSDT)} USDT** top-up for **${goal.name}**. Your wallet will ask you to approve it.`)
+      : (plan.reply || `**${goal.name}** needs a vault before deposits. Open the goal, create its vault, then top up **${formatTokenAmount(amountUSDT)} USDT**.`),
+    state: "idle",
+    data: {
+      plannerAction: "prepare_deposit",
+      action: goal.vaultGoalCreated ? "top_up_goal" : "open_goal_setup",
+      goalId: goal.id,
+      goal,
+      goals: session.goals || [],
+      amountUSDT,
+      agentPlanner: "v1",
+    },
+  };
+}
+
+function findGoalForPlannerDeposit(session, deposit = {}) {
+  const goals = session.goals || [];
+  if (deposit.goalId) {
+    const byId = goals.find(goal => goal.id === deposit.goalId);
+    if (byId) return byId;
+  }
+  const wantedName = normalizeName(deposit.goalName);
+  if (wantedName) {
+    const byName = goals.find(goal => normalizeName(goal.name) === wantedName || normalizeName(goal.name).includes(wantedName) || wantedName.includes(normalizeName(goal.name)));
+    if (byName) return byName;
+  }
+  return goals.find(goal => goal.status === "active") || goals[0] || null;
+}
+
+function buildPlannerClarification(plan) {
+  const missing = plan.missingFields || [];
+  if (missing.length) return `I can help with that. I only need the ${missing.join(", ")}.`;
+  return "I can help with that. Could you share one more detail?";
+}
+
+function enhancePlanWithLocalSignals(plan, userMessage) {
+  const local = extractLocalPlannerSignals(userMessage);
+  if (!local.wantsGoal && !local.wantsDeposit) return plan;
+
+  const next = {
+    ...plan,
+    goal: { ...(plan.goal || {}) },
+    deposit: { ...(plan.deposit || {}) },
+  };
+
+  if (local.goalName && !next.goal.name) next.goal.name = local.goalName;
+  if (local.deadlineText && !next.goal.deadlineText) next.goal.deadlineText = local.deadlineText;
+  if (local.targetAmount && !next.goal.targetAmount) next.goal.targetAmount = local.targetAmount;
+  if (local.depositAmount && !next.deposit.amountUSDT) next.deposit.amountUSDT = local.depositAmount;
+  if (local.goalName && !next.deposit.goalName) next.deposit.goalName = local.goalName;
+
+  if (local.wantsGoal && next.action === "ask_clarification" && isLikelyTestGoal(next.goal.name, userMessage) && next.deposit.amountUSDT) {
+    next.action = "create_goal";
+    next.goal.targetAmount = next.goal.targetAmount || next.deposit.amountUSDT;
+    next.missingFields = (next.missingFields || []).filter(field => !/target/i.test(field));
+  }
+
+  if (local.wantsGoal && next.action === "answer" && (next.goal.name || next.goal.targetAmount || next.deposit.amountUSDT)) {
+    next.action = "create_goal";
+  }
+
+  return next;
+}
+
+function extractLocalPlannerSignals(userMessage) {
+  const text = String(userMessage || "");
+  const lower = text.toLowerCase();
+  const wantsGoal = /\b(create|start|set up|make)\b.{0,40}\bgoal\b|\bgoal named\b|\bnamed\s+["“]/i.test(text);
+  const wantsDeposit = /\b(deposit|top\s*up|pay|put in)\b/i.test(text);
+  const goalName = text.match(/\bnamed\s+["“]([^"”]+)["”]/i)?.[1]
+    || text.match(/\bcall(?:ed)?\s+it\s+["“]([^"”]+)["”]/i)?.[1]
+    || "";
+  const depositAmount = Number(text.match(/\b(?:deposit|top\s*up|pay|put in)\s+([\d,.]+)\s*usdt\b/i)?.[1]?.replace(/,/g, "") || 0) || null;
+  const targetAmount = Number(text.match(/\b(?:save|target|goal (?:is|of))\s+([\d,.]+)\s*usdt\b/i)?.[1]?.replace(/,/g, "") || 0) || null;
+  const quotedDeadline = text.match(/\b(?:expiration date|expiry date|deadline)[^"“]*["“]([^"”]+)["”]/i)?.[1] || "";
+  const plainDeadline = text.match(/\b(?:by|before|until|deadline(?: is)?|expiration date(?: is)?)\s+(today|tomorrow|[^.]+?\b20\d{2})/i)?.[1] || "";
+
+  return {
+    wantsGoal,
+    wantsDeposit,
+    goalName: goalName.trim(),
+    depositAmount,
+    targetAmount,
+    deadlineText: (quotedDeadline || plainDeadline).trim(),
+    hasAdviceLanguage: /\b(tip|advice|advise|how best to save|saving culture)\b/i.test(lower),
+  };
+}
+
+function isLikelyTestGoal(goalName, message) {
+  const text = `${goalName || ""} ${message || ""}`.toLowerCase();
+  return /\b(test|trial|demo|sample)\b/.test(text);
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 async function processCeloTransfer(session, intent) {
