@@ -26,6 +26,7 @@ import {
   WalletInfo,
   WalletType,
   apiJson,
+  appendCeloAttribution,
   bytes32FromString,
   cleanWalletError,
   clearStoredWallet,
@@ -212,7 +213,7 @@ export default function App() {
           from: walletInfo.address,
           to: data.contracts.savingsVault,
           value: '0x0',
-          data: encodeVaultCreateGoal(vaultGoalId, targetUnits, deadlineSeconds),
+          data: appendCeloAttribution(encodeVaultCreateGoal(vaultGoalId, targetUnits, deadlineSeconds)),
         }],
       });
       setNotice('Goal submitted. Checking confirmation...');
@@ -259,7 +260,7 @@ export default function App() {
           from: walletInfo.address,
           to: data.contracts.savingsToken,
           value: '0x0',
-          data: encodeErc20Approve(data.contracts.savingsVault!, amountUnits),
+          data: appendCeloAttribution(encodeErc20Approve(data.contracts.savingsVault!, amountUnits)),
         }],
       });
       setNotice('Approval submitted. Waiting for confirmation...');
@@ -271,7 +272,7 @@ export default function App() {
           from: walletInfo.address,
           to: data.contracts.savingsVault,
           value: '0x0',
-          data: encodeVaultDeposit(vaultGoalId, amountUnits),
+          data: appendCeloAttribution(encodeVaultDeposit(vaultGoalId, amountUnits)),
         }],
       });
       await pollTransaction(depositHash, 'celo');
@@ -312,7 +313,7 @@ export default function App() {
           from: walletInfo.address,
           to: data.contracts.savingsVault,
           value: '0x0',
-          data: encodeVaultWithdraw(vaultGoalId, amountUnits),
+          data: appendCeloAttribution(encodeVaultWithdraw(vaultGoalId, amountUnits)),
         }],
       });
       setNotice('Withdrawal submitted. Checking confirmation...');
@@ -361,7 +362,7 @@ export default function App() {
       setNotice(paused ? 'Pausing this goal in your wallet...' : 'Resuming this goal in your wallet...');
       const txHash = await ethereum.request({
         method: 'eth_sendTransaction',
-        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: paused ? encodeVaultPauseGoal(vaultGoalId) : encodeVaultResumeGoal(vaultGoalId) }],
+        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: appendCeloAttribution(paused ? encodeVaultPauseGoal(vaultGoalId) : encodeVaultResumeGoal(vaultGoalId)) }],
       });
       await pollTransaction(txHash, 'celo');
       const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/status', {
@@ -412,13 +413,13 @@ export default function App() {
       setNotice('Approve USDT round-up for the vault...');
       const approveHash = await ethereum.request({
         method: 'eth_sendTransaction',
-        params: [{ from: walletInfo.address, to: data.contracts.savingsToken, value: '0x0', data: encodeErc20Approve(data.contracts.savingsVault!, amountUnits) }],
+        params: [{ from: walletInfo.address, to: data.contracts.savingsToken, value: '0x0', data: appendCeloAttribution(encodeErc20Approve(data.contracts.savingsVault!, amountUnits)) }],
       });
       await pollTransaction(approveHash, 'celo');
       setNotice('Saving your round-up...');
       const roundUpHash = await ethereum.request({
         method: 'eth_sendTransaction',
-        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: encodeVaultRoundUp(vaultGoalId, amountUnits) }],
+        params: [{ from: walletInfo.address, to: data.contracts.savingsVault, value: '0x0', data: appendCeloAttribution(encodeVaultRoundUp(vaultGoalId, amountUnits)) }],
       });
       await pollTransaction(roundUpHash, 'celo');
       await apiJson('/api/goals/' + encodeURIComponent(SESSION_ID) + '/' + encodeURIComponent(goal.id) + '/deposit-confirmed', {

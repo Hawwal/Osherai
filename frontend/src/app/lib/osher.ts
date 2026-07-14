@@ -1,3 +1,42 @@
+import { codeFromHostname, toDataSuffix } from '@celo/attribution-tags';
+
+const ASSIGNED_CELO_ATTRIBUTION_CODE = 'celo_26d5781f584b';
+const DEFAULT_CELO_ATTRIBUTION_CODE = 'osher_ai';
+const ATTRIBUTION_CODE_PATTERN = /^[a-z0-9_]{1,32}$/;
+let cachedAttributionSuffix: string | undefined;
+
+function addAttributionCode(codes: string[], code?: string) {
+  const normalized = String(code || '').trim().toLowerCase();
+  if (!normalized || !ATTRIBUTION_CODE_PATTERN.test(normalized)) return;
+  if (!codes.includes(normalized)) codes.push(normalized);
+}
+
+export function getCeloAttributionCodes() {
+  const codes: string[] = [];
+  addAttributionCode(codes, (import.meta as any).env?.VITE_CELO_ATTRIBUTION_CODE);
+  addAttributionCode(codes, ASSIGNED_CELO_ATTRIBUTION_CODE);
+  addAttributionCode(codes, DEFAULT_CELO_ATTRIBUTION_CODE);
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    addAttributionCode(codes, codeFromHostname(window.location.hostname));
+  }
+  return codes;
+}
+
+export function getCeloAttributionSuffix() {
+  if (cachedAttributionSuffix) return cachedAttributionSuffix;
+  const codes = getCeloAttributionCodes();
+  if (!codes.length) return undefined;
+  cachedAttributionSuffix = toDataSuffix(codes.length === 1 ? codes[0] : codes) as string;
+  return cachedAttributionSuffix;
+}
+
+export function appendCeloAttribution(data: string) {
+  const suffix = getCeloAttributionSuffix();
+  if (!suffix) return data;
+  const base = data && data !== '0x' ? data : '0x';
+  return base + suffix.replace(/^0x/, '');
+}
+
 export type WalletType = 'minipay' | 'metamask';
 
 export type WalletInfo = {

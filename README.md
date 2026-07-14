@@ -87,6 +87,10 @@ Print current evidence links:
 npm run evidence
 ```
 
+## Celo Attribution Tags
+
+Osher appends ERC-8021 attribution suffixes to user-approved Celo wallet transactions. The frontend includes the assigned Celo Builders tag `celo_26d5781f584b`, the app code `osher_ai`, and a deterministic hostname-derived Celo code. Keep `VITE_CELO_ATTRIBUTION_CODE=celo_26d5781f584b` set before building so the deployed bundle stays aligned with the registered tag.
+
 ## Setup
 ```bash
 npm install
@@ -114,6 +118,7 @@ OSHER_INFRA_API_KEYS=key_one,key_two
 OSHER_INFRA_API_KEY_HASHES=sha256_hash_one,sha256_hash_two
 OSHER_INFRA_REQUIRE_API_KEY=true
 OSHER_INFRA_RATE_LIMIT_PER_MINUTE=60
+VITE_CELO_ATTRIBUTION_CODE=celo_26d5781f584b
 ```
 
 Generate a private-beta infrastructure key:
