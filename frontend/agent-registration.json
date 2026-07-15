@@ -15,9 +15,13 @@
     {
       "name": "openapi",
       "endpoint": "https://osherai.onrender.com/api/infra/v1/openapi.json"
+    },
+    {
+      "name": "x402",
+      "endpoint": "https://osherai.onrender.com/api/x402/invoke"
     }
   ],
-  "x402Support": false,
+  "x402Support": true,
   "active": true,
   "registrations": [
     {

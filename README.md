@@ -118,6 +118,9 @@ OSHER_INFRA_API_KEY_HASHES=sha256_hash_one,sha256_hash_two
 OSHER_INFRA_REQUIRE_API_KEY=true
 OSHER_INFRA_RATE_LIMIT_PER_MINUTE=60
 VITE_CELO_ATTRIBUTION_CODE=celo_26d5781f584b
+X402_CELO_API_KEY=...
+X402_PAY_TO=0x...
+X402_PRICE_USD=0.01
 ```
 
 Generate a private-beta infrastructure key:
@@ -133,6 +136,18 @@ GET  /api/infra/v1/sandbox/health
 POST /api/infra/v1/sandbox/goals/plan
 POST /api/infra/v1/sandbox/vault/deposit-intent
 ```
+
+## x402 Paid Agent Access
+
+Osher exposes a paid agent endpoint for wallets, fintechs, and autonomous agents that prefer HTTP-native stablecoin payments over API keys.
+
+```text
+GET  /api/x402/health
+GET  /api/x402/requirements
+POST /api/x402/invoke
+```
+
+Call `POST /api/x402/invoke` without payment to receive HTTP 402 payment requirements. Retry with the x402 payment payload in the `X-PAYMENT` header or `payment` request body. The server settles the payload through the Celo x402 facilitator, then runs the Osher AI request.
 
 ## Production Readiness Checklist
 - Verify the savings vault source on Celoscan.

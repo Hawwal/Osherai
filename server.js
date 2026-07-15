@@ -40,7 +40,7 @@ const { startAlertPolling, getAlertsForSession, cancelAlert,
         getCurrentBridgeFees, getTokenPrice, getGasPrices } = require("./src/trading/alertEngine");
 const { handleTelegramUpdate, registerWebhook: registerTelegramWebhook } = require("./src/bots/telegramBot");
 const { handleWhatsAppWebhook, verifyWebhook: verifyWhatsAppWebhook }    = require("./src/bots/whatsappBot");
-const { createPaymentRequest, verifyPayment, hasRecentPayment }          = require("./src/payments/x402Payment");
+const { createPaymentRequirements, getX402Status, requireX402Payment }   = require("./src/payments/x402Payment");
 const { notifyAlertTriggered } = require("./src/bots/notifier");
 const mountAdminRoutes = require("./adminRoutes");
 const createInfrastructureRouter = require("./src/infrastructure/routes");
@@ -596,23 +596,37 @@ app.delete("/api/alerts/:alertId",   (req, res) => res.json({ success: cancelAle
 
 // ── x402 Payment Routes ───────────────────────────────────────────
 
-// POST /api/payment/request — generate fee request before transfer
-app.post("/api/payment/request", (req, res) => {
-  const { sessionId, userAddress, token = "USDC" } = req.body;
-  if (!sessionId || !userAddress) return res.status(400).json({ error: "sessionId and userAddress required" });
-  if (hasRecentPayment(sessionId)) return res.json({ alreadyPaid: true, message: "Recent payment found. Proceeding." });
-  const pr = createPaymentRequest(sessionId, userAddress, token);
-  res.json({ ...pr, message: `Send ${pr.amount} ${token} to ${pr.payTo} on Celo to proceed.` });
+app.get("/api/x402/health", (req, res) => {
+  res.json({
+    ok: true,
+    ...getX402Status(),
+    invokeUrl: `${config.SERVER.PUBLIC_URL.replace(/\/+$/, "")}/api/x402/invoke`,
+  });
 });
 
-// POST /api/payment/verify — confirm payment on-chain
-app.post("/api/payment/verify", async (req, res) => {
-  const { nonce, txHash } = req.body;
-  if (!nonce || !txHash) return res.status(400).json({ error: "nonce and txHash required" });
+app.get("/api/x402/requirements", (req, res) => {
+  res.status(402).json(createPaymentRequirements(req));
+});
+
+app.post("/api/x402/invoke", requireX402Payment, async (req, res) => {
   try {
-    const result = await verifyPayment(nonce, txHash);
-    res.json({ ...result, message: result.verified ? "✅ Payment verified! Transfer will execute." : `❌ ${result.reason}` });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const sessionId = req.body?.sessionId || `x402_${Date.now()}`;
+    const message = req.body?.message || "Give me one practical savings tip for a Celo stablecoin user.";
+    const walletInfo = req.body?.walletInfo || {};
+    const result = await handleUserMessage(sessionId, message, walletInfo);
+    res.set("X-PAYMENT-RESPONSE", JSON.stringify(req.x402?.settlement || {}));
+    res.json({
+      ok: true,
+      paid: true,
+      settlement: req.x402?.settlement || null,
+      result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message || "Osher x402 invocation failed.",
+    });
+  }
 });
 
 // ── Telegram Webhook ──────────────────────────────────────────────
@@ -688,8 +702,8 @@ server.listen(PORT, async () => {
 ╠══════════════════════════════════════════════════════════╣
 ║  REST API         POST /api/message                      ║
 ║                   GET  /api/fees | /api/gas | /api/price ║
-║  x402 Payments    POST /api/payment/request              ║
-║                   POST /api/payment/verify               ║
+║  x402 Payments    GET  /api/x402/health                  ║
+║                   POST /api/x402/invoke                  ║
 ║  Telegram Bot     POST /webhooks/telegram                ║
 ║  WhatsApp Bot     GET  /webhooks/whatsapp  (verify)      ║
 ║                   POST /webhooks/whatsapp  (messages)    ║

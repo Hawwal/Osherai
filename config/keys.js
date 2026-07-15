@@ -59,6 +59,17 @@ module.exports = {
   SERVICE_FEE_WALLET: env.SERVICE_FEE_WALLET || "YOUR_FEE_COLLECTION_WALLET_HERE",
   SERVICE_FEE_PERCENT: parseFloat(env.SERVICE_FEE_PERCENT || "0.5"),
 
+  // ── Celo x402 Payments ──────────────────────────────────────
+  X402: {
+    API_KEY: env.X402_CELO_API_KEY || "",
+    FACILITATOR_URL: env.X402_FACILITATOR_URL || "https://api.x402.celo.org",
+    NETWORK: env.X402_NETWORK || "celo",
+    PAY_TO: env.X402_PAY_TO || env.SERVICE_FEE_WALLET || savingsVaultDeployment.agent || "",
+    TOKEN: env.X402_TOKEN || "USDC",
+    PRICE_USD: parseFloat(env.X402_PRICE_USD || "0.01"),
+    MAX_TIMEOUT_SECONDS: parseInt(env.X402_MAX_TIMEOUT_SECONDS || "300", 10),
+  },
+
   // ── Savings Vault ────────────────────────────────────────────
   CONTRACTS: {
     OSHER_SAVINGS_VAULT: env.OSHER_SAVINGS_VAULT || savingsVaultDeployment.contractAddress || "",

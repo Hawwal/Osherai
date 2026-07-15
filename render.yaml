@@ -45,5 +45,11 @@ services:
         sync: false
       - key: SERVICE_FEE_WALLET
         sync: false
+      - key: X402_CELO_API_KEY
+        sync: false
+      - key: X402_PAY_TO
+        sync: false
+      - key: X402_PRICE_USD
+        sync: false
       - key: PUBLIC_URL
         sync: false
