@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Osher has two product surfaces:
+Osher AI is an AI savings agent with an infrastructure layer for adding Celo stablecoin savings intelligence to wallets, fintech apps, and autonomous agents. The system has two product surfaces:
 
 - **Osher App**: the MiniPay-first savings app for consumers.
 - **Osher Infrastructure**: the API and SDK layer for builders and agents.

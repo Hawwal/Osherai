@@ -1,6 +1,6 @@
 # Osher Agent Tool Spec
 
-Osher can be exposed to other agents as a savings-specialist toolset. The toolset prepares structured savings actions while leaving wallet approval with the user.
+Osher AI can be exposed to other agents as a savings-specialist toolset. It understands natural-language savings commands, creates structured Celo stablecoin savings plans, prepares wallet-safe vault actions, and leaves transaction approval with the user.
 
 ## Tools
 

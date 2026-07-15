@@ -1,8 +1,8 @@
 # Osher Infrastructure
 
-Osher Infrastructure is a builder API and SDK layer for adding AI-powered savings features to wallets, fintech apps, and autonomous agents.
+Osher Infrastructure is the builder API and SDK layer behind Osher AI, an AI savings agent that lets wallets, fintech apps, and autonomous agents add AI-powered Celo stablecoin savings intelligence to any platform.
 
-The infrastructure provides goal parsing, savings plans, local-currency display, personalized nudges, practical money tips, and wallet-safe deposit intents for Celo stablecoin savings.
+The infrastructure provides natural-language goal parsing, real-time savings plans, local-currency display, personalized nudges, practical money tips, wallet-safe deposit intents, and paid x402 agent access for Celo stablecoin savings.
 
 ## Mainnet Contract
 

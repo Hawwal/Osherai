@@ -1,6 +1,6 @@
 # Osher JavaScript SDK
 
-JavaScript client for Osher Infrastructure.
+JavaScript client for Osher Infrastructure, the API and SDK layer behind Osher AI. Use it to add AI-powered Celo stablecoin savings intelligence, goal planning, nudges, tips, and wallet-safe deposit intents to wallets, fintech apps, and autonomous agents.
 
 ## Install
 
