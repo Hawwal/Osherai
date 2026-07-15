@@ -267,12 +267,7 @@ export default function App() {
       const balanceUnits = await readErc20Balance(data.contracts.savingsToken!, walletInfo.address!);
       if (balanceUnits < amountUnits) {
         const currentBalance = formatUnits(balanceUnits, SAVINGS_TOKEN_DECIMALS, 2);
-        if (isMiniPay()) {
-          setNotice(`Your USDT balance is ${currentBalance} USDT. Opening MiniPay Deposit...`);
-          window.location.href = 'https://link.minipay.xyz/add_cash?tokens=USDT,USDC,USDm';
-          return;
-        }
-        throw new Error(`Your USDT balance is ${currentBalance} USDT, but this deposit needs ${amount.toFixed(2)} USDT. Use Deposit to add stablecoins, then try again.`);
+        throw new Error(`Your connected ${isMiniPay() ? 'MiniPay' : 'wallet'} USDT balance is ${currentBalance} USDT, but this top-up needs ${amount.toFixed(2)} USDT. Add USDT to this wallet or choose a smaller top-up amount, then try again.`);
       }
       setNotice('Approve USDT for the vault...');
       const approveHash = await ethereum.request({
