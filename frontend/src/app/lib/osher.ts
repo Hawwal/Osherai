@@ -116,7 +116,21 @@ export type Recommendation = {
   status?: string;
 };
 
-export type ContractsConfig = { network?: string; savingsVault?: string; savingsToken?: string; agent?: string; };
+export type ContractsConfig = {
+  network?: string;
+  savingsVault?: string;
+  savingsToken?: string;
+  configuredSavingsToken?: string;
+  vaultSavingsToken?: string;
+  currentCeloUsdt?: string;
+  legacyCeloUsdt?: string;
+  tokenMatchesConfig?: boolean;
+  vaultReady?: boolean;
+  vaultIssue?: string;
+  agent?: string;
+};
+
+export const CURRENT_CELO_USDT = '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e';
 
 export type NetworkConfig = { chainId: string; chainName: string; nativeCurrency: { name: string; symbol: string; decimals: number }; rpcUrls: string[]; blockExplorerUrls: string[]; };
 
@@ -419,7 +433,8 @@ export async function readNativeCeloBalance(owner: string): Promise<bigint> {
 }
 
 export async function loadWalletBalances(owner: string, contracts: ContractsConfig): Promise<WalletBalances> {
-  const usdtRaw = contracts.savingsToken ? await readErc20Balance(contracts.savingsToken, owner).catch(() => 0n) : 0n;
+  const walletUsdtToken = contracts.currentCeloUsdt || CURRENT_CELO_USDT;
+  const usdtRaw = walletUsdtToken ? await readErc20Balance(walletUsdtToken, owner).catch(() => 0n) : 0n;
   return {
     usdt: Number(formatUnits(usdtRaw, 6, 6)),
   };

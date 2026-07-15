@@ -2,11 +2,11 @@
   "contract": "OsherSavingsVault",
   "network": "celo",
   "chainId": 42220,
-  "contractAddress": "0xc1dCD2e711Acf54694aA25437596dfBE042399De",
+  "contractAddress": "0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42",
   "deployer": "0xDe25bf927C839355C66ee3551dAE8A143bF85F9a",
   "owner": "0xDe25bf927C839355C66ee3551dAE8A143bF85F9a",
   "agent": "0xDe25bf927C839355C66ee3551dAE8A143bF85F9a",
-  "savingsToken": "0x617f3112bf5397D0467D315cC709EF968D9ba546",
-  "deployedAt": "2026-06-14T15:44:18.789Z",
-  "explorer": "https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De"
+  "savingsToken": "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e",
+  "deployedAt": "2026-07-15T00:00:00.000Z",
+  "explorer": "https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42"
 }

@@ -212,6 +212,9 @@ export default function App() {
     if (!walletInfo.address) throw new Error('Connect MiniPay or MetaMask first.');
     if (!data.contracts?.savingsVault) throw new Error('Savings vault is not configured yet. Set OSHER_SAVINGS_VAULT after deployment.');
     if (!data.contracts?.savingsToken) throw new Error('Savings token is not configured yet.');
+    if (data.contracts.vaultReady === false) {
+      throw new Error(data.contracts.vaultIssue || 'Savings vault needs to be updated before deposits.');
+    }
   };
 
   const reconcileGoals = async () => {

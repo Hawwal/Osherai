@@ -18,7 +18,25 @@ const fs = require("fs");
 const path = require("path");
 const { ethers, network } = require("hardhat");
 
-const CELO_MAINNET_USDT = "0x617f3112bf5397D0467D315cC709EF968D9ba546";
+const CELO_MAINNET_USDT = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
+
+async function waitForReadableContract(vault, attempts = 12) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return {
+        owner: await vault.owner(),
+        agent: await vault.agent(),
+        savingsToken: await vault.savingsToken(),
+      };
+    } catch (err) {
+      lastError = err;
+      console.log(`Waiting for RPC to index contract reads... (${attempt}/${attempts})`);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+  }
+  throw lastError;
+}
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -38,8 +56,13 @@ async function main() {
   const Vault = await ethers.getContractFactory("OsherSavingsVault");
   const vault = await Vault.deploy(savingsToken, agent);
   await vault.waitForDeployment();
+  const deployTx = vault.deploymentTransaction();
+  if (deployTx) {
+    await deployTx.wait(3);
+  }
 
   const address = await vault.getAddress();
+  const deployed = await waitForReadableContract(vault);
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const explorerBase = chainId === 42220
     ? "https://celoscan.io/address"
@@ -55,9 +78,9 @@ async function main() {
     chainId,
     contractAddress: address,
     deployer: deployer.address,
-    owner: await vault.owner(),
-    agent: await vault.agent(),
-    savingsToken: await vault.savingsToken(),
+    owner: deployed.owner,
+    agent: deployed.agent,
+    savingsToken: deployed.savingsToken,
     deployedAt: new Date().toISOString(),
     explorer: `${explorerBase}/${address}`,
   };

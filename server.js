@@ -45,6 +45,9 @@ const { notifyAlertTriggered } = require("./src/bots/notifier");
 const mountAdminRoutes = require("./adminRoutes");
 const createInfrastructureRouter = require("./src/infrastructure/routes");
 
+const CURRENT_CELO_USDT = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
+const LEGACY_CELO_USDT = "0x617f3112bf5397D0467D315cC709EF968D9ba546";
+
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, {
@@ -482,6 +485,39 @@ function getStaticNetwork(chain) {
   return networks[normalized] || { chainId: 42220, name: "celo" };
 }
 
+function sameAddress(a, b) {
+  return Boolean(a && b && String(a).toLowerCase() === String(b).toLowerCase());
+}
+
+function buildVaultTokenStatus({ configuredToken, vaultToken }) {
+  const effectiveToken = vaultToken || configuredToken || "";
+  const usesCurrentUsdt = sameAddress(effectiveToken, CURRENT_CELO_USDT);
+  const usesLegacyUsdt = sameAddress(effectiveToken, LEGACY_CELO_USDT);
+  const tokenMatchesConfig = !configuredToken || !vaultToken || sameAddress(configuredToken, vaultToken);
+  let vaultReady = Boolean(config.CONTRACTS?.OSHER_SAVINGS_VAULT && effectiveToken);
+  let vaultIssue = "";
+
+  if (!usesCurrentUsdt) {
+    vaultReady = false;
+    vaultIssue = usesLegacyUsdt
+      ? "This vault was deployed with an older Celo USDT address. Redeploy the savings vault with current Celo USDT before deposits."
+      : "This vault is not configured with current Celo USDT. Update the vault/token configuration before deposits.";
+  } else if (!tokenMatchesConfig) {
+    vaultReady = false;
+    vaultIssue = "The configured savings token does not match the token stored in the deployed vault.";
+  }
+
+  return {
+    currentCeloUsdt: CURRENT_CELO_USDT,
+    legacyCeloUsdt: LEGACY_CELO_USDT,
+    vaultSavingsToken: vaultToken || "",
+    savingsToken: effectiveToken,
+    tokenMatchesConfig,
+    vaultReady,
+    vaultIssue,
+  };
+}
+
 app.get("/api/fees", async (req, res) => {
   const { fromChain = "celo", toChain, token = "USDC", amount = 100 } = req.query;
   if (!toChain) return res.status(400).json({ error: "toChain is required" });
@@ -516,16 +552,36 @@ app.get("/api/rates", (_, res) => {
   });
 });
 
-app.get("/api/contracts", (_, res) => {
+app.get("/api/contracts", async (_, res) => {
   const savingsVault = config.CONTRACTS?.OSHER_SAVINGS_VAULT || "";
-  const savingsToken = config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "";
+  const configuredToken = config.CONTRACTS?.VAULT_SAVINGS_TOKEN || config.TOKENS?.CELO?.USDT || "";
+  let vaultToken = "";
+
+  if (savingsVault) {
+    try {
+      const { ethers } = require("ethers");
+      const provider = new ethers.JsonRpcProvider(config.RPC.CELO, getStaticNetwork("celo"), { staticNetwork: true });
+      try {
+        const abi = ["function savingsToken() view returns (address)"];
+        const vault = new ethers.Contract(savingsVault, abi, provider);
+        vaultToken = await vault.savingsToken();
+      } finally {
+        provider.destroy();
+      }
+    } catch (err) {
+      console.warn("[Contracts] Could not read vault savingsToken:", err.message);
+    }
+  }
+
+  const tokenStatus = buildVaultTokenStatus({ configuredToken, vaultToken });
   res.json({
     network: config.NETWORK || "mainnet",
     chainId: config.NETWORK === "mainnet" ? 42220 : 44787,
     savingsVault,
-    savingsToken,
+    configuredSavingsToken: configuredToken,
     agent: config.CONTRACTS?.VAULT_AGENT_ADDRESS || "",
-    vaultConfigured: Boolean(savingsVault && savingsToken),
+    vaultConfigured: Boolean(savingsVault && tokenStatus.savingsToken && tokenStatus.vaultReady),
+    ...tokenStatus,
   });
 });
 
@@ -562,6 +618,7 @@ app.get("/api/contracts/health", async (_, res) => {
         vault.goalCount(),
         vault.totalSaved(),
       ]);
+      const tokenStatus = buildVaultTokenStatus({ configuredToken: expectedToken, vaultToken: savingsToken });
       res.json({
         ok: true,
         network: config.NETWORK || "mainnet",
@@ -569,9 +626,9 @@ app.get("/api/contracts/health", async (_, res) => {
         savingsVault,
         owner,
         agent,
-        savingsToken,
+        configuredSavingsToken: expectedToken,
         expectedToken,
-        tokenMatchesConfig: expectedToken ? String(savingsToken).toLowerCase() === String(expectedToken).toLowerCase() : true,
+        ...tokenStatus,
         paused,
         goalCount: goalCount.toString(),
         totalSaved: totalSaved.toString(),
