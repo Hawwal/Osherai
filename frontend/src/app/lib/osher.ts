@@ -141,6 +141,9 @@ export type AuthProfile = {
   method?: AuthMethod;
   userId?: string;
   avatarIcon?: string;
+  onboardingComplete?: boolean;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 export type AppData = {
@@ -309,15 +312,21 @@ export function loadStoredAuthProfile(): AuthProfile {
 }
 
 export function storeAuthProfile(profile: AuthProfile) {
+  const current = loadStoredAuthProfile();
   const clean = {
+    ...current,
     ...profile,
-    name: (profile.name || '').trim(),
-    contact: (profile.contact || '').trim(),
+    name: (profile.name ?? current.name ?? '').trim(),
+    contact: (profile.contact || current.contact || '').trim(),
   };
   localStorage.setItem('osher_auth_profile', JSON.stringify(clean));
   if (clean.name) localStorage.setItem('osher_user_name', clean.name);
   if (clean.userId) setAuthenticatedSession(clean);
   return clean;
+}
+
+function authHeaders(profile = loadStoredAuthProfile()) {
+  return profile.accessToken ? { Authorization: `Bearer ${profile.accessToken}` } : {};
 }
 
 export async function startSupabaseOtp(profile: AuthProfile) {
@@ -334,6 +343,30 @@ export async function verifySupabaseOtp(profile: AuthProfile & { otp: string }) 
   });
   if (result.success) storeAuthProfile(result.user || profile);
   return result;
+}
+
+export async function loadRemoteAuthProfile() {
+  const current = loadStoredAuthProfile();
+  if (!current.accessToken) return current;
+  const result = await apiJson<{ success: boolean; profile?: AuthProfile }>('/api/profile', {
+    headers: authHeaders(current),
+  });
+  if (result.success && result.profile) {
+    return storeAuthProfile({ ...current, ...result.profile });
+  }
+  return current;
+}
+
+export async function saveRemoteAuthProfile(profile: AuthProfile) {
+  const current = loadStoredAuthProfile();
+  const merged = storeAuthProfile({ ...current, ...profile });
+  const result = await apiJson<{ success: boolean; profile?: AuthProfile }>('/api/profile', {
+    method: 'POST',
+    headers: authHeaders(merged),
+    body: JSON.stringify({ profile: merged }),
+  }).catch(() => ({ success: true, profile: merged }));
+  if (result.success && result.profile) return storeAuthProfile({ ...merged, ...result.profile });
+  return merged;
 }
 
 export function shortAddress(address?: string) {

@@ -28,6 +28,7 @@ const persistence = require("../storage/persistence");
 const logger = require("../utils/errorLogger");
 
 const activeSessions = new Map();
+const CURRENT_CELO_USDT = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
 
 async function handleUserMessage(sessionId, userMessage, walletInfo = {}) {
   const session = activeSessions.get(sessionId) || createSession(sessionId, walletInfo);
@@ -594,8 +595,13 @@ async function handleBalanceCheck(session, intent) {
       ? [requestedToken]
       : ["USDT", "USDC", "USDm"];
 
+    const celoTokenAddresses = {
+      ...config.TOKENS.CELO,
+      USDT: CURRENT_CELO_USDT,
+    };
+
     for (const name of tokenNames) {
-      const tokenAddress = config.TOKENS.CELO[name];
+      const tokenAddress = celoTokenAddresses[name];
       if (!tokenAddress) continue;
 
       try {

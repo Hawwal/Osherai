@@ -7,9 +7,10 @@ interface Props {
   onConnect: (walletType?: WalletType | 'auto') => void;
   walletInfo?: WalletInfo;
   onDisconnect?: () => void;
+  onSkip?: () => void;
 }
 
-export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
+export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Props) {
   const connected = Boolean(walletInfo?.address);
   const inMiniPay = isMiniPay();
   const providerLabel = walletDisplayName(walletInfo);
@@ -103,6 +104,17 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect }: Props) {
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: '#fff3dc' }}><Clock size={11} color="#b36a00" /><span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#b36a00' }}>Soon</span></div>
           </div>
         </div>
+
+        <button
+          onClick={onSkip}
+          className="w-full rounded-2xl px-5 py-4 text-center transition-transform active:scale-98"
+          style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.07)', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
+        >
+          Skip wallet for now
+          <span style={{ display: 'block', fontSize: '0.72rem', color: '#9a9ab8', fontWeight: 600, marginTop: 4 }}>
+            Explore Osher AI first. Connect later to deposit or withdraw.
+          </span>
+        </button>
       </div>
 
       <div className="px-5 pb-8 pt-4"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>

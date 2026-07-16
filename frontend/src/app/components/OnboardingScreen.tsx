@@ -5,6 +5,8 @@ import osherLogo from "../../imports/Osher_wallet_logo.png";
 
 interface Props {
   onContinue: () => void;
+  onSkip: () => void;
+  onAnalyze: (message: string) => Promise<string>;
 }
 
 const EXAMPLES = [
@@ -13,23 +15,29 @@ const EXAMPLES = [
   { emoji: "🛡️", text: "I want an emergency fund." },
 ];
 
-export function OnboardingScreen({ onContinue }: Props) {
+export function OnboardingScreen({ onContinue, onSkip, onAnalyze }: Props) {
   const [input, setInput] = useState("");
   const [aiReply, setAiReply] = useState("");
   const [typing, setTyping] = useState(false);
+  const [error, setError] = useState("");
 
-  const triggerAI = (text: string) => {
+  const triggerAI = async (text: string) => {
     setInput(text);
     setAiReply("");
+    setError("");
     setTyping(true);
-    setTimeout(() => {
+    try {
+      const reply = await onAnalyze(text);
+      setAiReply(reply);
+    } catch (err: any) {
+      setError(err?.message || "Osher AI could not analyze that yet. Try again.");
+    } finally {
       setTyping(false);
-      setAiReply("Got it! To reach your goal, save ₦20,833 weekly. I'll remind you every Monday. 🎯");
-    }, 1100);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="h-full overflow-y-auto bg-background" style={{ scrollbarWidth: "none" }}>
       {/* Header band */}
       <div
         className="relative px-6 pt-14 pb-10 overflow-hidden"
@@ -107,11 +115,12 @@ export function OnboardingScreen({ onContinue }: Props) {
             </span>
             <button
               onClick={() => input.trim() && triggerAI(input)}
+              disabled={!input.trim() || typing}
               style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "7px 14px",
                 borderRadius: 10,
-                background: input.trim() ? "#171717" : "#e8e8f0",
-                color: input.trim() ? "#fff" : "#9a9ab8",
+                background: input.trim() && !typing ? "#171717" : "#e8e8f0",
+                color: input.trim() && !typing ? "#fff" : "#9a9ab8",
                 fontSize: "0.8rem", fontWeight: 600, transition: "all 0.2s",
               }}
             >
@@ -130,6 +139,7 @@ export function OnboardingScreen({ onContinue }: Props) {
             <button
               key={text}
               onClick={() => triggerAI(text)}
+              disabled={typing}
               className="flex items-center gap-3 text-left px-4 py-3.5 rounded-2xl border transition-all active:scale-98"
               style={{ background: "#fff", borderColor: "rgba(0,0,0,0.07)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
             >
@@ -142,7 +152,7 @@ export function OnboardingScreen({ onContinue }: Props) {
         </div>
 
         {/* AI Response card */}
-        {(typing || aiReply) && (
+        {(typing || aiReply || error) && (
           <div
             className="rounded-2xl overflow-hidden mb-5"
             style={{ background: "#171717", boxShadow: "0 4px 20px rgba(23,23,23,0.22)" }}
@@ -188,6 +198,10 @@ export function OnboardingScreen({ onContinue }: Props) {
                     />
                   ))}
                 </div>
+              ) : error ? (
+                <p style={{ fontSize: "0.9rem", color: "#ffd6d6", lineHeight: 1.6, fontWeight: 600 }}>
+                  {error}
+                </p>
               ) : (
                 <p style={{ fontSize: "0.95rem", color: "#fff", lineHeight: 1.65, fontWeight: 400 }}>
                   {aiReply}
@@ -215,6 +229,13 @@ export function OnboardingScreen({ onContinue }: Props) {
           }}
         >
           Continue <ArrowRight size={18} strokeWidth={2.5} />
+        </button>
+        <button
+          onClick={onSkip}
+          className="w-full py-3 mt-2 rounded-2xl"
+          style={{ color: "#5a5a8a", fontWeight: 800, fontSize: "0.9rem" }}
+        >
+          Skip for now
         </button>
       </div>
 

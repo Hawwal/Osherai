@@ -132,6 +132,25 @@ async function supabaseAuthRequest(pathname, body, query = {}) {
   return data;
 }
 
+async function supabaseUserRequest(method, accessToken, body) {
+  if (!isSupabaseAuthConfigured()) throw new Error("Supabase Auth is not configured.");
+  if (!accessToken) throw new Error("Signed-in user token is required.");
+  const response = await fetch(`${config.SUPABASE.URL.replace(/\/$/, "")}/auth/v1/user`, {
+    method,
+    headers: {
+      apikey: config.SUPABASE.ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error_description || data.msg || data.message || `Supabase user ${response.status}`);
+  }
+  return data;
+}
+
 function normalizeAuthPayload(body = {}) {
   const method = body.method === "phone" ? "phone" : "email";
   const contact = String(body.contact || body.value || "").trim();
@@ -187,13 +206,74 @@ app.post("/api/auth/verify", async (req, res) => {
 
     const data = await supabaseAuthRequest("/verify", payload);
     const user = data.user || {};
+    const metadata = user.user_metadata || {};
     res.json({
       success: true,
       user: {
-        name: name || user.user_metadata?.name || "",
+        name: metadata.name || name || "",
         contact,
         method,
         userId: user.id,
+        avatarIcon: metadata.avatarIcon || "lion",
+        onboardingComplete: Boolean(metadata.onboardingComplete),
+        accessToken: data.access_token || "",
+        refreshToken: data.refresh_token || "",
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get("/api/profile", async (req, res) => {
+  try {
+    const auth = String(req.headers.authorization || "");
+    const accessToken = auth.replace(/^Bearer\s+/i, "").trim();
+    if (!isSupabaseAuthConfigured() || !accessToken) {
+      return res.json({ success: true, profile: {} });
+    }
+    const user = await supabaseUserRequest("GET", accessToken);
+    const metadata = user.user_metadata || {};
+    res.json({
+      success: true,
+      profile: {
+        name: metadata.name || "",
+        contact: user.email || user.phone || "",
+        method: user.phone ? "phone" : "email",
+        userId: user.id,
+        avatarIcon: metadata.avatarIcon || "lion",
+        onboardingComplete: Boolean(metadata.onboardingComplete),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post("/api/profile", async (req, res) => {
+  try {
+    const auth = String(req.headers.authorization || "");
+    const accessToken = auth.replace(/^Bearer\s+/i, "").trim();
+    const profile = req.body?.profile || req.body || {};
+    const clean = {
+      name: String(profile.name || "").trim(),
+      avatarIcon: String(profile.avatarIcon || "lion").trim(),
+      onboardingComplete: Boolean(profile.onboardingComplete),
+    };
+    if (!isSupabaseAuthConfigured() || !accessToken) {
+      return res.json({ success: true, profile: clean, demo: true });
+    }
+    const user = await supabaseUserRequest("PUT", accessToken, { data: clean });
+    const metadata = user.user_metadata || {};
+    res.json({
+      success: true,
+      profile: {
+        name: metadata.name || clean.name,
+        contact: user.email || user.phone || profile.contact || "",
+        method: user.phone ? "phone" : "email",
+        userId: user.id,
+        avatarIcon: metadata.avatarIcon || clean.avatarIcon,
+        onboardingComplete: Boolean(metadata.onboardingComplete),
       },
     });
   } catch (err) {

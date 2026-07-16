@@ -44,10 +44,13 @@ import {
   isMiniPay,
   loadAppData,
   loadNetworkConfig,
+  loadRemoteAuthProfile,
+  loadStoredAuthProfile,
   loadStoredWallet,
   parseUnits,
   pollTransaction,
   readErc20Balance,
+  saveRemoteAuthProfile,
   storeAuthProfile,
 } from './lib/osher';
 
@@ -133,13 +136,24 @@ export default function App() {
     return () => { cancelled = true; };
   }, [networkConfig, walletInfo.address]);
 
-  const refreshData = async () => {
-    const next = await loadAppData(walletInfo, displayMode);
+  const refreshData = async (walletOverride?: WalletInfo) => {
+    const next = await loadAppData(walletOverride || walletInfo, displayMode);
     setData(next);
   };
 
-  const handleSplashDone = () => {
-    setFlow(walletInfo.address ? 'app' : 'onboarding');
+  const handleSplashDone = async () => {
+    const localProfile = loadStoredAuthProfile();
+    if (!localProfile.userId) {
+      setFlow('auth');
+      return;
+    }
+    const profile = await loadRemoteAuthProfile().catch(() => localProfile);
+    setUserDisplayName(getUserDisplayName());
+    if (!profile.onboardingComplete) {
+      setFlow('onboarding');
+      return;
+    }
+    setFlow(walletInfo.address ? 'app' : 'wallet');
   };
 
   const handleWalletConnect = async (walletType: WalletType | 'auto' = 'auto') => {
@@ -166,8 +180,26 @@ export default function App() {
   const handleAuth = (profile: AuthProfile) => {
     const stored = storeAuthProfile(profile);
     setUserDisplayName(getUserDisplayName());
-    setFlow('wallet');
-    setNotice(stored.name ? `Welcome, ${stored.name}. Connect your wallet to continue.` : 'Account verified. Connect your wallet to continue.');
+    const returning = Boolean(stored.onboardingComplete);
+    setFlow(returning ? 'wallet' : 'onboarding');
+    setNotice(returning
+      ? (stored.name ? `Welcome back, ${stored.name}. Connect your wallet to continue.` : 'Welcome back. Connect your wallet to continue.')
+      : (stored.name ? `Welcome, ${stored.name}. Osher AI can help set your first goal.` : 'Account verified. Osher AI can help set your first goal.'));
+  };
+
+  const completeOnboarding = async () => {
+    await saveRemoteAuthProfile({ onboardingComplete: true }).catch(() => storeAuthProfile({ onboardingComplete: true }));
+    setFlow(walletInfo.address ? 'app' : 'wallet');
+  };
+
+  const continueWithoutWallet = async () => {
+    clearStoredWallet();
+    setWalletInfo({});
+    setFlow('app');
+    setTab('chat');
+    setOverlay(null);
+    setNotice('You can explore Osher AI without a wallet. Connect one later to deposit or withdraw.');
+    await refreshData({});
   };
 
   const sendMessage = async (message: string) => {
@@ -190,6 +222,15 @@ export default function App() {
         setNotice('Create this goal vault first, then tap Top up.');
       }
     }
+    return response?.message || response?.error || 'I could not process that yet.';
+  };
+
+  const analyzeOnboardingGoal = async (message: string) => {
+    const response = await apiJson<any>('/api/message', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: SESSION_ID, message, walletInfo: { ...walletInfo, profileName: userDisplayName } }),
+    });
+    if (response?.data?.goal || response?.data?.goals) await refreshData();
     return response?.message || response?.error || 'I could not process that yet.';
   };
 
@@ -477,8 +518,8 @@ export default function App() {
     await refreshData();
   };
 
-  const handleProfileUpdate = (profile: AuthProfile) => {
-    storeAuthProfile(profile);
+  const handleProfileUpdate = async (profile: AuthProfile) => {
+    await saveRemoteAuthProfile(profile).catch(() => storeAuthProfile(profile));
     setUserDisplayName(getUserDisplayName());
     setNotice(profile.name ? `Profile updated. Hi ${profile.name}.` : 'Profile updated.');
   };
@@ -542,9 +583,9 @@ export default function App() {
         }}
       >
         {flow === 'splash' && <SplashScreen onDone={handleSplashDone} />}
-        {flow === 'onboarding' && <OnboardingScreen onContinue={() => setFlow('auth')} />}
+        {flow === 'onboarding' && <OnboardingScreen onContinue={completeOnboarding} onSkip={completeOnboarding} onAnalyze={analyzeOnboardingGoal} />}
         {flow === 'auth' && <AuthScreen onAuth={handleAuth} />}
-        {flow === 'wallet' && <WalletScreen onConnect={handleWalletConnect} walletInfo={walletInfo} onDisconnect={disconnectWallet} />}
+        {flow === 'wallet' && <WalletScreen onConnect={handleWalletConnect} walletInfo={walletInfo} onDisconnect={disconnectWallet} onSkip={continueWithoutWallet} />}
 
         {flow === 'app' && (
           <>

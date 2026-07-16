@@ -21,6 +21,7 @@ function loadSavingsVaultDeployment() {
 
 const savingsVaultDeployment = loadSavingsVaultDeployment();
 const NETWORK = env.NETWORK || "mainnet";
+const CELO_MAINNET_USDT = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
 
 module.exports = {
   // ── Network ──────────────────────────────────────────────────
@@ -152,7 +153,7 @@ module.exports = {
   TOKENS: {
     CELO: {
       USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
-      USDT: "0x617f3112bf5397D0467D315cC709EF968D9ba546",
+      USDT: CELO_MAINNET_USDT,
       USDm: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       CELO: "0x471EcE3750Da237f93B8E339c536989b8978a438",
     },
