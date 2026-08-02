@@ -144,15 +144,11 @@ export default function App() {
   const handleSplashDone = async () => {
     const localProfile = loadStoredAuthProfile();
     if (!localProfile.userId) {
-      setFlow('auth');
+      setFlow(localStorage.getItem('osher_onboarding_seen') === 'true' ? 'auth' : 'onboarding');
       return;
     }
-    const profile = await loadRemoteAuthProfile().catch(() => localProfile);
+    await loadRemoteAuthProfile().catch(() => localProfile);
     setUserDisplayName(getUserDisplayName());
-    if (!profile.onboardingComplete) {
-      setFlow('onboarding');
-      return;
-    }
     setFlow(walletInfo.address ? 'app' : 'wallet');
   };
 
@@ -178,18 +174,24 @@ export default function App() {
   };
 
   const handleAuth = (profile: AuthProfile) => {
-    const stored = storeAuthProfile(profile);
+    const stored = storeAuthProfile({ ...profile, onboardingComplete: true });
     setUserDisplayName(getUserDisplayName());
-    const returning = Boolean(stored.onboardingComplete);
-    setFlow(returning ? 'wallet' : 'onboarding');
-    setNotice(returning
-      ? (stored.name ? `Welcome back, ${stored.name}. Connect your wallet to continue.` : 'Welcome back. Connect your wallet to continue.')
-      : (stored.name ? `Welcome, ${stored.name}. Osher AI can help set your first goal.` : 'Account verified. Osher AI can help set your first goal.'));
+    setFlow(walletInfo.address ? 'app' : 'wallet');
+    setNotice(stored.name ? `Welcome, ${stored.name}. Connect your wallet when you are ready to save.` : 'Account verified. Connect your wallet when you are ready to save.');
   };
 
-  const completeOnboarding = async () => {
-    await saveRemoteAuthProfile({ onboardingComplete: true }).catch(() => storeAuthProfile({ onboardingComplete: true }));
-    setFlow(walletInfo.address ? 'app' : 'wallet');
+  const completeOnboarding = () => {
+    localStorage.setItem('osher_onboarding_seen', 'true');
+    setFlow('auth');
+  };
+
+  const continueWithoutAccount = async () => {
+    localStorage.setItem('osher_onboarding_seen', 'true');
+    setFlow('app');
+    setTab('chat');
+    setOverlay(null);
+    setNotice('You can explore Osher AI without an account. Sign up later to save your goals across devices.');
+    await refreshData({});
   };
 
   const continueWithoutWallet = async () => {
@@ -563,7 +565,7 @@ export default function App() {
       case 'tips':
         return <TipsScreen tips={data.tips} onExplainTip={sendMessage} />;
       case 'profile':
-        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} dashboard={data.dashboard} walletBalances={data.walletBalances} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} onProfileUpdate={handleProfileUpdate} onOpenChat={() => setTab('chat')} />;
+        return <ProfileScreen userName={userDisplayName} walletInfo={walletInfo} displayMode={displayMode} dashboard={data.dashboard} walletBalances={data.walletBalances} isAuthenticated={Boolean(loadStoredAuthProfile().userId)} onDisplayModeChange={setDisplayMode} onDisconnect={disconnectWallet} onProfileUpdate={handleProfileUpdate} onOpenChat={() => setTab('chat')} onAuthRequired={() => setFlow('auth')} onConnectWallet={() => setFlow('wallet')} />;
       default:
         return null;
     }
@@ -583,8 +585,8 @@ export default function App() {
         }}
       >
         {flow === 'splash' && <SplashScreen onDone={handleSplashDone} />}
-        {flow === 'onboarding' && <OnboardingScreen onContinue={completeOnboarding} onSkip={completeOnboarding} onAnalyze={analyzeOnboardingGoal} />}
-        {flow === 'auth' && <AuthScreen onAuth={handleAuth} />}
+        {flow === 'onboarding' && <OnboardingScreen onContinue={completeOnboarding} onSkip={completeOnboarding} />}
+        {flow === 'auth' && <AuthScreen onAuth={handleAuth} onSkip={continueWithoutAccount} />}
         {flow === 'wallet' && <WalletScreen onConnect={handleWalletConnect} walletInfo={walletInfo} onDisconnect={disconnectWallet} onSkip={continueWithoutWallet} />}
 
         {flow === 'app' && (

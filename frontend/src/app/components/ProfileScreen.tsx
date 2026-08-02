@@ -29,9 +29,12 @@ interface Props {
   onDisconnect?: () => void;
   onProfileUpdate?: (profile: AuthProfile) => void;
   onOpenChat?: () => void;
+  onAuthRequired?: () => void;
+  onConnectWallet?: () => void;
+  isAuthenticated?: boolean;
 }
 
-export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {}, walletBalances = {}, onDisplayModeChange, onDisconnect, onProfileUpdate, onOpenChat }: Props = {}) {
+export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {}, walletBalances = {}, onDisplayModeChange, onDisconnect, onProfileUpdate, onOpenChat, onAuthRequired, onConnectWallet, isAuthenticated = false }: Props = {}) {
   const [usd, setUsd] = useState(displayMode === "usdt");
   const [notifications, setNotifications] = useState(true);
   const [securityLock, setSecurityLock] = useState(true);
@@ -42,10 +45,10 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   const [status, setStatus] = useState("");
   const [selectedIcon, setSelectedIcon] = useState(profile.avatarIcon || "lion");
   const [walletMenuOpen, setWalletMenuOpen] = useState(false);
-  const displayName = userName || "there";
+  const displayName = isAuthenticated ? (userName || "there") : "Guest explorer";
   const walletLabel = walletDisplayName(walletInfo);
   const walletHint = walletReference(walletInfo?.address);
-  const contact = profile.contact || "Contact not set";
+  const contact = isAuthenticated ? (profile.contact || "Contact not set") : "Sign up to save your profile";
   const avatarOptions: AvatarOption[] = [
     { id: "lion", label: "Lion", image: lionIcon, bg: "#fff0ea" },
     { id: "wolf", label: "Wolf", image: wolfIcon, bg: "#f0edff" },
@@ -74,6 +77,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
   const openWalletMenu = () => {
     if (!walletInfo?.address) {
       setStatus("Connect MiniPay or MetaMask first.");
+      onConnectWallet?.();
       return;
     }
     setWalletMenuOpen(true);
@@ -116,7 +120,7 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
       title: "Support",
       items: [
         { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Help & Support", sub: "Open Osher AI chat", action: onOpenChat },
-        { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Contact Support", sub: "Email Osher support", action: () => { window.location.href = "mailto:hawwal.ogungbadero@gmail.com?subject=Osher%20AI%20Support"; } },
+        { icon: <HelpCircle size={16} />, bg: "#f5f5fb", ic: "#9a9ab8", label: "Contact Support", sub: "Email Osher support", action: () => { window.location.href = "mailto:Team@osherfinance.com?subject=Osher%20AI%20Support"; } },
         { icon: <Shield size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Terms of Service", sub: "Review usage terms", action: () => window.open("/terms.html", "_blank") },
         { icon: <Shield size={16} />, bg: "#f0f0f9", ic: "#5a5a8a", label: "Privacy Policy", sub: "Review data practices", action: () => window.open("/privacy.html", "_blank") },
       ],
@@ -266,11 +270,16 @@ export function ProfileScreen({ userName, walletInfo, displayMode, dashboard = {
         </div>
       ))}
 
-      {/* Sign out */}
       <div className="px-4 mt-1">
-        <button onClick={onDisconnect} className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#fff5f5", color: "#c0392b", fontWeight: 600, fontSize: "0.875rem", border: "1px solid rgba(192,57,43,0.12)" }}>
-          <LogOut size={15} /> Sign Out
-        </button>
+        {isAuthenticated ? (
+          <button onClick={onDisconnect} className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#fff5f5", color: "#c0392b", fontWeight: 600, fontSize: "0.875rem", border: "1px solid rgba(192,57,43,0.12)" }}>
+            <LogOut size={15} /> Sign Out
+          </button>
+        ) : (
+          <button onClick={onAuthRequired} className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: "#171717", color: "#CCCCF7", fontWeight: 800, fontSize: "0.875rem" }}>
+            <User size={15} /> Sign up or log in
+          </button>
+        )}
       </div>
 
       <p style={{ textAlign: "center", fontSize: "0.72rem", color: "#c8c8d8", padding: "20px 0 8px" }}>

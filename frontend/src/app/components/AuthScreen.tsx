@@ -6,9 +6,10 @@ import { AuthMethod, AuthProfile, startSupabaseOtp, verifySupabaseOtp } from "..
 
 interface Props {
   onAuth: (profile: AuthProfile) => void;
+  onSkip?: () => void;
 }
 
-export function AuthScreen({ onAuth }: Props) {
+export function AuthScreen({ onAuth, onSkip }: Props) {
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [method, setMethod] = useState<AuthMethod>("email");
   const [name, setName] = useState("");
@@ -238,6 +239,15 @@ export function AuthScreen({ onAuth }: Props) {
               {busy ? "Sending..." : "Send verification code"} <ArrowRight size={18} />
             </button>
             {status && <p style={{ fontSize: "0.78rem", color: status.includes("Could") ? "#c0392b" : "#6b6b8a", marginTop: 12, textAlign: "center", lineHeight: 1.45 }}>{status}</p>}
+            {onSkip && (
+              <button
+                onClick={onSkip}
+                className="w-full py-3 mt-3 rounded-2xl"
+                style={{ color: "#5a5a8a", fontWeight: 800, fontSize: "0.9rem" }}
+              >
+                Explore Osher AI without an account
+              </button>
+            )}
           </>
         ) : (
           <>
