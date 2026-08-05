@@ -2,13 +2,13 @@
 
 ## One-Line Summary
 
-Osher AI is an AI savings agent with an infrastructure layer that lets wallets, fintechs, and agents add AI-powered Celo stablecoin savings intelligence to any platform. The agent understands natural language commands, prepares real-time savings plans, supports autonomous savings workflows, and makes goal-based stablecoin savings easier for users.
+Osher AI is a savings discipline app and agent layer for Celo stablecoin users. It helps people separate important savings from daily spending with AI-generated weekly plans, progress tracking, nudges, and wallet-approved USDT top-ups.
 
 ## Product Thesis
 
 Millions of African users already understand goal-based savings, but local-currency devaluation makes long-term planning harder. Osher keeps the familiar savings behavior while using USDT on Celo as the savings rail.
 
-The app is the first product. Osher Infrastructure is the platform layer that lets wallets, fintech apps, and AI agents add the same savings intelligence.
+The app is the first product. Osher Infrastructure is the platform layer that lets wallets, fintech apps, and AI agents add the same discipline engine without rebuilding goal parsing, coaching, local-currency UX, and wallet-safe deposit flows.
 
 ## What Exists Today
 
@@ -18,10 +18,10 @@ The app is the first product. Osher Infrastructure is the platform layer that le
 - MiniPay primary wallet support.
 - MetaMask fallback support.
 - Wallet login proof through free message signing.
-- AI chat for goal creation and savings coaching.
+- AI chat for goal creation and savings discipline coaching.
 - Manual goal creation.
 - Local-currency and USDT display modes.
-- Savings vault flow for Celo USDT deposits.
+- Goal protection flow for Celo USDT deposits.
 - Goal dashboard, progress, tips, recommendations, activity, and profile flows.
 
 ### Smart Contract Layer
@@ -31,7 +31,7 @@ The app is the first product. Osher Infrastructure is the platform layer that le
 - ERC-20 deposits.
 - Withdrawals with lock logic.
 - Round-up recording.
-- Agent auto-sweep permissioning.
+- Permissioned agent sweep controls.
 - Pause controls.
 - Hardhat tests covering core vault behavior.
 
@@ -105,7 +105,7 @@ Users can create goals through AI or through a form.
 
 ### 5. Create Vault And Deposit
 
-Show goal vault setup and top-up flow.
+Show goal protection setup and top-up flow.
 
 Key point:
 
@@ -179,10 +179,10 @@ Output highlights:
 
 ### Consumer
 
-- Premium savings coach.
+- Premium savings discipline coach.
 - Unlimited goals.
-- Priority nudges.
-- Future yield access.
+- Priority nudges and accountability summaries.
+- Optional yield access only after explicit opt-in.
 
 ### Infrastructure
 
@@ -201,7 +201,7 @@ Output highlights:
 - MiniPay-first distribution path.
 - Local-currency UX for African users.
 - Self-custodial Celo stablecoin savings.
-- AI + vault + behavior layer in one system.
+- AI + goal protection + behavior layer in one system.
 - Builder API creates platform leverage beyond the app.
 
 ## Current Readiness
@@ -247,6 +247,6 @@ Not yet ready for:
 
 ## Investor Narrative
 
-Osher starts with a consumer savings app because trust and behavior must be proven with real users. The infrastructure layer turns that product into a platform: any wallet, fintech, or agent can add savings intelligence without rebuilding goal parsing, coaching, vault deposits, and local-currency UX.
+Osher starts with a consumer savings app because trust and behavior must be proven with real users. The infrastructure layer turns that product into a platform: any wallet, fintech, or agent can add savings discipline intelligence without rebuilding goal parsing, coaching, wallet-safe deposits, and local-currency UX.
 
 The long-term opportunity is to become the savings-agent rail for stablecoin-powered financial apps in Africa.

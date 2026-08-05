@@ -76,14 +76,14 @@ export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, o
 
       <button onClick={onWeeklyNudge} className="mx-4 mb-5 rounded-2xl px-4 py-3.5 flex items-center gap-3 text-left" style={{ background: '#CCCCF7' }}>
         <div style={{ width: 30, height: 30, borderRadius: 10, overflow: 'hidden', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}><ImageWithFallback src={osherLogo} alt="Osher AI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /></div>
-        <div className="flex-1"><p style={{ fontSize: '0.82rem', color: '#171717', fontWeight: 600, lineHeight: 1.4 }}>{data.goals.length ? 'Generate this week\'s personalised Osher summary.' : 'Tell Osher what you are saving for to create your first plan.'}</p></div>
+        <div className="flex-1"><p style={{ fontSize: '0.82rem', color: '#171717', fontWeight: 600, lineHeight: 1.4 }}>{data.goals.length ? 'Generate this week\'s savings accountability check-in.' : 'Start by separating one important goal from daily spending.'}</p></div>
         <ChevronRight size={15} color="#5a5a8a" style={{ flexShrink: 0 }} />
       </button>
 
       <div className="px-4 mb-5">
         <div className="flex items-center justify-between mb-3"><p className="font-display" style={{ fontWeight: 700, fontSize: '1rem', color: '#0d0d14', letterSpacing: '-0.01em' }}>My Goals</p><button onClick={() => onGoalClick(data.goals[0])} style={{ fontSize: '0.78rem', fontWeight: 600, color: '#9898e8' }}>See all →</button></div>
         <div className="flex flex-col gap-3">
-          {goals.length === 0 && <button onClick={onAddGoal} className="w-full rounded-2xl p-5 text-left" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}><p className="font-display" style={{ fontWeight: 800, color: '#0d0d14' }}>Create your first goal</p><p style={{ fontSize: '0.82rem', color: '#9a9ab8', marginTop: 4 }}>Chat with Osher to set a rent, school fees, emergency, travel, or custom savings target.</p></button>}
+          {goals.length === 0 && <button onClick={onAddGoal} className="w-full rounded-2xl p-5 text-left" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}><p className="font-display" style={{ fontWeight: 800, color: '#0d0d14' }}>Separate your first savings goal</p><p style={{ fontSize: '0.82rem', color: '#9a9ab8', marginTop: 4 }}>Choose rent, school fees, emergency, travel, or custom. Osher will give you a weekly plan you can stick to.</p></button>}
           {goals.map(goal => {
             const pct = Math.max(0, Math.min(100, Number(goal.progressPercent || 0)));
             return (
@@ -97,13 +97,13 @@ export function HomeScreen({ data, displayMode, userName, onDisplayModeChange, o
         </div>
       </div>
 
-      <div className="px-4 mb-4"><div className="flex items-center justify-between mb-3"><p className="font-display" style={{ fontWeight: 700, fontSize: '1rem', color: '#0d0d14', letterSpacing: '-0.01em' }}>Agent Activity</p><span style={{ fontSize: '0.7rem', color: '#9a9ab8' }}>Latest</span></div><div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-        {(data.activity.length ? data.activity.slice(0, 3) : [{ message: 'Your agent activity will appear here.', created_at: new Date().toISOString() }]).map((item, i) => (
+      <div className="px-4 mb-4"><div className="flex items-center justify-between mb-3"><p className="font-display" style={{ fontWeight: 700, fontSize: '1rem', color: '#0d0d14', letterSpacing: '-0.01em' }}>Savings Activity</p><span style={{ fontSize: '0.7rem', color: '#9a9ab8' }}>Latest</span></div><div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        {(data.activity.length ? data.activity.slice(0, 3) : [{ message: 'Your savings check-ins and wallet-approved actions will appear here.', created_at: new Date().toISOString() }]).map((item, i) => (
           <div key={item.id || i} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: i < Math.min(data.activity.length || 1, 3) - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}><div style={{ width: 34, height: 34, borderRadius: 10, background: i === 0 ? '#e8f5ec' : '#f0f0f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '1rem' }}><Sparkles size={15} color="#5a5a8a" /></div><p style={{ flex: 1, fontSize: '0.83rem', color: '#3d3d6e', fontWeight: 500 }}>{item.message || 'Activity recorded'}</p><span style={{ fontSize: '0.68rem', color: '#b0b0c8', flexShrink: 0 }}>{new Date(item.created_at || item.createdAt || Date.now()).toLocaleDateString()}</span></div>
         ))}
       </div></div>
 
-      <div className="mx-4 rounded-2xl px-5 py-4 flex items-center gap-4" style={{ background: '#fff9ed', border: '1px solid rgba(245,200,66,0.2)' }}><span style={{ fontSize: '2.2rem' }}>🔥</span><div className="flex-1"><p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0d0d14', letterSpacing: '-0.01em' }}>{streak} Weeks Streak</p><p style={{ fontSize: '0.78rem', color: '#b36a00', marginTop: 1 }}>Keep your weekly saving rhythm alive.</p></div><div style={{ width: 36, height: 36, borderRadius: 12, background: '#fff3dc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={16} color="#b36a00" /></div></div>
+      <div className="mx-4 rounded-2xl px-5 py-4 flex items-center gap-4" style={{ background: '#fff9ed', border: '1px solid rgba(245,200,66,0.2)' }}><span style={{ fontSize: '2.2rem' }}>🔥</span><div className="flex-1"><p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0d0d14', letterSpacing: '-0.01em' }}>{streak} Weeks Streak</p><p style={{ fontSize: '0.78rem', color: '#b36a00', marginTop: 1 }}>Keep your saving rhythm alive. Consistency is the value.</p></div><div style={{ width: 36, height: 36, borderRadius: 12, background: '#fff3dc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={16} color="#b36a00" /></div></div>
     </div>
   );
 }

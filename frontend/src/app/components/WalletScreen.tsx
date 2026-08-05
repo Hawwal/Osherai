@@ -29,7 +29,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Pr
           {inMiniPay ? 'MiniPay is ready' : <>Connect your<br />wallet</>}
         </h1>
         <p style={{ color: '#6b6b8a', marginTop: 8, fontSize: '0.875rem', lineHeight: 1.6 }}>
-          Your savings stay in your own wallet. Every goal deposit or withdrawal asks for your approval and may include a small network fee.
+          Connect when you are ready to top up a goal. Osher helps separate savings from spending, but every deposit and withdrawal still needs your wallet approval.
         </p>
       </div>
 
@@ -40,7 +40,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Pr
             <div className="flex items-center justify-between gap-4 relative z-10">
               <div>
                 <p className="font-display" style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>Connect MiniPay</p>
-                <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 1.5 }}>Tap to let Osher AI request access to your MiniPay wallet address. Deposits and withdrawals still require separate approval.</p>
+                <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 1.5 }}>Tap to let Osher view your MiniPay wallet address. Savings actions still require separate approval, so you stay in control.</p>
               </div>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.12)' }}><ArrowRight size={16} color="#fff" /></div>
             </div>
@@ -62,7 +62,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Pr
             <span className="px-2.5 py-1 rounded-full" style={{ background: '#CCCCF7', color: '#171717', fontSize: '0.7rem', fontWeight: 700 }}>{isMiniPay() ? 'Detected' : 'Recommended'}</span>
           </div>
           <div className="flex items-center justify-between relative z-10">
-            <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', maxWidth: '75%' }}>Primary wallet for MiniPay users on Celo.</p>
+            <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', maxWidth: '75%' }}>Best path for MiniPay users who want savings discipline without losing wallet control.</p>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)' }}><ArrowRight size={15} color="#fff" /></div>
           </div>
         </button>}
@@ -90,7 +90,7 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Pr
             </div>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: '#f0f0f9' }}><ArrowRight size={15} color="#6b6b8a" /></div>
           </div>
-          <p style={{ fontSize: '0.82rem', color: '#9a9ab8' }}>Fallback wallet for users who already hold Celo stablecoins there.</p>
+          <p style={{ fontSize: '0.82rem', color: '#9a9ab8' }}>Fallback wallet for users who already hold Celo USDT or stablecoins there.</p>
         </button>}
 
         <div className="rounded-3xl p-5 border" style={{ background: '#fafafa', borderColor: 'rgba(0,0,0,0.06)', opacity: 0.65 }}>
@@ -112,12 +112,12 @@ export function WalletScreen({ onConnect, walletInfo, onDisconnect, onSkip }: Pr
         >
           Skip wallet for now
           <span style={{ display: 'block', fontSize: '0.72rem', color: '#9a9ab8', fontWeight: 600, marginTop: 4 }}>
-            Explore Osher AI first. Connect later to deposit or withdraw.
+            Explore the coaching first. Connect later to protect money in a goal.
           </span>
         </button>
       </div>
 
-      <div className="px-5 pb-8 pt-4"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Celo stablecoins · User-approved transactions</p></div></div>
+      <div className="px-5 pb-8 pt-4"><div className="flex items-center justify-center gap-2"><ShieldCheck size={15} color="#4caf75" /><p style={{ fontSize: '0.78rem', color: '#6b6b8a' }}>Non-custodial · Goal discipline · User-approved transactions</p></div></div>
     </div>
   );
 }

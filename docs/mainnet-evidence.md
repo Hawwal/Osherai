@@ -12,11 +12,11 @@ This document tracks the public evidence for Osher AI's shipped Celo savings flo
 
 ## Celo Mainnet Contract
 
-- Savings vault: `0xc1dCD2e711Acf54694aA25437596dfBE042399De`
-- Celoscan address: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De
-- Contract source: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#code
-- Transactions: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#transactions
-- Events: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#events
+- Savings vault: `0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42`
+- Celoscan address: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42
+- Contract source: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42#code
+- Transactions: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42#transactions
+- Events: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42#events
 - Savings token: `0x617f3112bf5397D0467D315cC709EF968D9ba546` (USDT on Celo)
 
 ## Contract Verification

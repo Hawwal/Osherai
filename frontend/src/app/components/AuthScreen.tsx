@@ -138,8 +138,8 @@ export function AuthScreen({ onAuth, onSkip }: Props) {
           {otpSent
             ? `Enter the 8-digit code sent to ${value || (method === "email" ? "your email" : "your phone")}.`
             : mode === "signup"
-            ? "Join thousands saving smarter with Osher AI."
-            : "Sign in to continue your savings journey."}
+            ? "Create an account to keep your goals, streaks, and coaching history across devices."
+            : "Sign in to continue building your savings habit."}
         </p>
       </div>
 

@@ -93,8 +93,8 @@ export function ManualGoalFormScreen({ onBack, onAskAi, onCreateGoal }: Props) {
 
       <div className="px-5 pb-4">
         <div style={{ width: 58, height: 58, borderRadius: 20, background: '#171717', color: '#CCCCF7', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, boxShadow: '0 6px 18px rgba(23,23,23,0.18)' }}><Target size={25} /></div>
-        <h1 className="font-display" style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0d0d14', letterSpacing: '-0.02em' }}>Create savings goal</h1>
-        <p style={{ color: '#6b6b8a', marginTop: 6, fontSize: '0.86rem', lineHeight: 1.55 }}>Set the details manually, or ask Osher AI to help you shape the plan.</p>
+        <h1 className="font-display" style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0d0d14', letterSpacing: '-0.02em' }}>Separate a savings goal</h1>
+        <p style={{ color: '#6b6b8a', marginTop: 6, fontSize: '0.86rem', lineHeight: 1.55 }}>Use this when you already know the amount and deadline. Osher turns it into a repeatable weekly habit.</p>
       </div>
 
       <div className="px-5 flex flex-col gap-4">
@@ -135,17 +135,17 @@ export function ManualGoalFormScreen({ onBack, onAskAi, onCreateGoal }: Props) {
         <label className="rounded-3xl p-4" style={{ background: '#fff', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
           <span className="block" style={{ color: '#6b6b8a', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>First top-up</span>
           <input value={startingDeposit} onChange={e => setStartingDeposit(e.target.value)} inputMode="decimal" type="number" min="0" placeholder="Optional" className="w-full outline-none bg-transparent mt-2" style={{ color: '#0d0d14', fontSize: '1rem', fontWeight: 700 }} />
-          <span className="block" style={{ color: '#9a9ab8', fontSize: '0.72rem', marginTop: 6 }}>After creating the goal, create its vault and top up from your wallet.</span>
+          <span className="block" style={{ color: '#9a9ab8', fontSize: '0.72rem', marginTop: 6 }}>Optional. Start tiny, then top up from your wallet when you are ready.</span>
         </label>
 
         <button onClick={() => setRoundUpEnabled(!roundUpEnabled)} className="rounded-3xl p-4 flex items-center justify-between text-left" style={{ background: '#fff', boxShadow: '0 3px 12px rgba(0,0,0,0.06)' }}>
-          <span><span className="block" style={{ color: '#0d0d14', fontWeight: 800 }}>Round-up savings</span><span className="block" style={{ color: '#6b6b8a', fontSize: '0.78rem', marginTop: 2 }}>Save spare change from logged spending.</span></span>
+          <span><span className="block" style={{ color: '#0d0d14', fontWeight: 800 }}>Round-up savings</span><span className="block" style={{ color: '#6b6b8a', fontSize: '0.78rem', marginTop: 2 }}>Turn logged spending into a reminder to save spare change.</span></span>
           <span style={{ width: 48, height: 28, borderRadius: 999, background: roundUpEnabled ? '#171717' : '#e8e8f0', padding: 3, transition: 'background 0.2s ease' }}><span style={{ display: 'block', width: 22, height: 22, borderRadius: '50%', background: roundUpEnabled ? '#CCCCF7' : '#fff', transform: roundUpEnabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s ease' }} /></span>
         </button>
 
         {error && <div className="rounded-2xl p-3" style={{ background: '#fff5f5', color: '#c0392b', fontSize: '0.82rem', fontWeight: 700 }}>{error}</div>}
 
-        <button onClick={submit} disabled={!canSubmit || submitting} className="py-4 rounded-3xl" style={{ background: canSubmit && !submitting ? '#171717' : '#d8d8e8', color: canSubmit && !submitting ? '#CCCCF7' : '#7f7f9d', fontWeight: 900, fontSize: '0.96rem', boxShadow: canSubmit && !submitting ? '0 7px 22px rgba(23,23,23,0.22)' : 'none' }}>{submitting ? 'Creating goal...' : 'Create Goal'}</button>
+        <button onClick={submit} disabled={!canSubmit || submitting} className="py-4 rounded-3xl" style={{ background: canSubmit && !submitting ? '#171717' : '#d8d8e8', color: canSubmit && !submitting ? '#CCCCF7' : '#7f7f9d', fontWeight: 900, fontSize: '0.96rem', boxShadow: canSubmit && !submitting ? '0 7px 22px rgba(23,23,23,0.22)' : 'none' }}>{submitting ? 'Creating plan...' : 'Create Discipline Plan'}</button>
       </div>
     </div>
   );

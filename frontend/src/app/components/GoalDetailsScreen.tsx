@@ -18,7 +18,7 @@ interface Props {
 
 export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal, onTopUp, onWithdraw, onDeleteGoal, onToggleRoundUp, onLogSpend, onPauseGoal, onResumeGoal, onReconcile }: Props) {
   if (!goal) {
-    return <div className="flex flex-col h-full" style={{ background: '#f5f5fb' }}><div className="px-5 pt-12"><button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}><ChevronLeft size={18} /></button><h1 className="font-display" style={{ marginTop: 24, fontSize: '1.6rem', fontWeight: 800 }}>Create a goal in AI Chat</h1><p style={{ color: '#6b6b8a', marginTop: 8 }}>Tell Osher what you want to save for, the amount, and the deadline.</p></div></div>;
+    return <div className="flex flex-col h-full" style={{ background: '#f5f5fb' }}><div className="px-5 pt-12"><button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}><ChevronLeft size={18} /></button><h1 className="font-display" style={{ marginTop: 24, fontSize: '1.6rem', fontWeight: 800 }}>Create a discipline plan with Osher</h1><p style={{ color: '#6b6b8a', marginTop: 8 }}>Tell Osher what money you want to protect from daily spending, plus the amount and deadline.</p></div></div>;
   }
 
   const pct = Math.max(0, Math.min(100, Number(goal.progressPercent || 0)));
@@ -31,7 +31,7 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
     <div className="flex flex-col h-full overflow-y-auto pb-8" style={{ background: '#f5f5fb', scrollbarWidth: 'none' }}>
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
         <button onClick={onBack} style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)' }}><ChevronLeft size={18} color="#0d0d14" /></button>
-        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: onChainReady ? '#2d7a47' : '#b36a00', background: onChainReady ? '#e8f5ec' : '#fff3dc', padding: '5px 10px', borderRadius: 8 }}>{onChainReady ? 'Vault ready' : 'Needs setup'}</span>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: onChainReady ? '#2d7a47' : '#b36a00', background: onChainReady ? '#e8f5ec' : '#fff3dc', padding: '5px 10px', borderRadius: 8 }}>{onChainReady ? 'Goal protected' : 'Protection setup needed'}</span>
       </div>
 
       <div className="px-5 text-center mb-5">
@@ -52,18 +52,18 @@ export function GoalDetailsScreen({ goal, displayMode, onBack, onCreateVaultGoal
 
       <div className="px-5 grid grid-cols-2 gap-3 mb-5">
         <button onClick={() => onTopUp(goal)} disabled={!onChainReady} className="py-3.5 rounded-2xl" style={{ background: '#CCCCF7', color: '#171717', opacity: onChainReady ? 1 : 0.45, fontWeight: 800 }}>Top up</button>
-        <button onClick={() => onCreateVaultGoal(goal)} disabled={onChainReady} className="py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: onChainReady ? '#e8f5ec' : '#171717', color: onChainReady ? '#2d7a47' : '#fff', fontWeight: 800 }}><ShieldCheck size={15} />{onChainReady ? 'Ready' : 'Create vault'}</button>
+        <button onClick={() => onCreateVaultGoal(goal)} disabled={onChainReady} className="py-3.5 rounded-2xl flex items-center justify-center gap-2" style={{ background: onChainReady ? '#e8f5ec' : '#171717', color: onChainReady ? '#2d7a47' : '#fff', fontWeight: 800 }}><ShieldCheck size={15} />{onChainReady ? 'Protected' : 'Protect goal'}</button>
         <button onClick={() => onWithdraw(goal)} disabled={!onChainReady || !hasBalance} className="py-3.5 rounded-2xl" style={{ background: '#fff3dc', color: '#b36a00', opacity: onChainReady && hasBalance ? 1 : 0.45, fontWeight: 800 }}>Withdraw</button>
         <button onClick={() => onDeleteGoal(goal)} disabled={hasBalance} className="py-3.5 rounded-2xl" style={{ background: '#fff5f5', color: '#c0392b', opacity: hasBalance ? 0.45 : 1, fontWeight: 800 }}>{onChainReady ? 'Archive' : 'Delete'}</button>
         <button onClick={() => onToggleRoundUp(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>{goal.roundUpEnabled ? 'Round-up on' : 'Round-up off'}</button>
         <button onClick={() => onLogSpend(goal)} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Log spend</button>
         <button onClick={() => goal.status === 'paused' ? onResumeGoal(goal) : onPauseGoal(goal)} disabled={!onChainReady} className="py-3.5 rounded-2xl" style={{ background: '#f7f7ff', color: '#3d3d6e', opacity: onChainReady ? 1 : 0.45, fontWeight: 800 }}>{goal.status === 'paused' ? 'Resume' : 'Pause'}</button>
-        <button onClick={onReconcile} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Refresh vault</button>
+        <button onClick={onReconcile} className="py-3.5 rounded-2xl" style={{ background: '#fff', color: '#3d3d6e', fontWeight: 800, boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>Refresh saved balance</button>
       </div>
 
       <div className="mx-5 rounded-2xl p-4" style={{ background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-3 mb-3"><Calendar size={16} color="#9898e8" /><p className="font-display" style={{ fontWeight: 800, color: '#0d0d14' }}>Savings plan</p></div>
-        <p style={{ fontSize: '0.86rem', color: '#6b6b8a', lineHeight: 1.6 }}>Save <strong style={{ color: '#0d0d14' }}>{formatGoalAmount(goal, displayMode, 'weekly')}</strong> weekly to stay on pace. Current on-chain saved balance is {formatTokenNumber(goal.currentAmountUSDT || 0)} USDT.</p>
+        <p style={{ fontSize: '0.86rem', color: '#6b6b8a', lineHeight: 1.6 }}>Save <strong style={{ color: '#0d0d14' }}>{formatGoalAmount(goal, displayMode, 'weekly')}</strong> weekly to stay on pace. This is the amount that keeps the goal separate from daily spending. Wallet-approved saved balance is {formatTokenNumber(goal.currentAmountUSDT || 0)} USDT.</p>
         <div className="flex items-center gap-1.5 mt-3"><TrendingUp size={13} color="#2d7a47" /><span style={{ fontSize: '0.78rem', color: '#2d7a47', fontWeight: 700 }}>{goal.status || 'Active'}</span></div>
       </div>
     </div>

@@ -2,12 +2,12 @@
 
 ## System Overview
 
-Osher AI is an AI savings agent with an infrastructure layer for adding Celo stablecoin savings intelligence to wallets, fintech apps, and autonomous agents. The system has two product surfaces:
+Osher AI is a savings discipline system for Celo stablecoin users. It helps people separate important savings from daily spending with AI-generated plans, nudges, streaks, and wallet-approved goal funding. The system has two product surfaces:
 
 - **Osher App**: the MiniPay-first savings app for consumers.
 - **Osher Infrastructure**: the API and SDK layer for builders and agents.
 
-Both surfaces use the same core savings logic, Celo contract configuration, and vault model.
+Both surfaces use the same core savings discipline logic, Celo contract configuration, and wallet-safe deposit model.
 
 ## Layers
 
@@ -16,15 +16,15 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 - Mobile-first React/Vite web app.
 - MiniPay primary wallet path.
 - MetaMask fallback wallet path.
-- AI chat, dashboard, goals, tips, wallet/profile flows.
+- AI chat, dashboard, goals, tips, wallet/profile flows, and habit-focused onboarding.
 
 ### Agent Layer
 
-- Natural-language intent parsing.
+- Natural-language savings and discipline planning.
 - Savings goal state machine.
 - Chat history persistence.
-- Nudge and tip generation.
-- Wallet-safe action preparation.
+- Accountability nudge and practical tip generation.
+- Wallet-safe action preparation for user-approved money movement.
 
 ### Infrastructure API
 
@@ -47,7 +47,7 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 - Celo Mainnet.
 - USDT primary savings token.
 - cUSD/USDm-compatible architecture for additional stablecoin support.
-- Osher savings vault for goal deposits, withdrawals, round-ups, and agent-controlled sweep permissions.
+- Osher savings vault for goal separation, deposits, withdrawals, round-ups, and limited agent sweep permissions.
 
 ## Safety Model
 
@@ -55,14 +55,14 @@ Both surfaces use the same core savings logic, Celo contract configuration, and 
 - Osher never asks for private keys.
 - Deposits require wallet approval.
 - Investment or yield actions require explicit opt-in.
-- Infrastructure deposit intents describe an action; they do not custody funds.
+- Infrastructure deposit intents describe a wallet action; they do not custody funds or bypass user approval.
 
 ## Builder Integration Flow
 
 1. Builder sends a natural-language goal to Osher Infrastructure.
 2. Osher parses the goal and returns structured fields.
 3. Builder creates or stores the goal in its own product.
-4. Builder requests a deposit intent when the user is ready to fund the goal.
+4. Builder requests a deposit intent when the user is ready to protect money for the goal.
 5. User approves the required wallet transactions.
 6. Builder uses Osher nudges, tips, and summaries to keep the user engaged.
 

@@ -1,6 +1,6 @@
 # Osher Agent Tool Spec
 
-Osher AI can be exposed to other agents as a savings-specialist toolset. It understands natural-language savings commands, creates structured Celo stablecoin savings plans, prepares wallet-safe vault actions, and leaves transaction approval with the user.
+Osher AI can be exposed to other agents as a savings discipline toolset. It understands natural-language savings goals, creates structured Celo stablecoin habit plans, prepares wallet-safe deposit actions, and leaves transaction approval with the user.
 
 ## Tools
 
@@ -58,7 +58,7 @@ POST /api/infra/v1/nudges/generate
 
 ### `osher.tip.generate`
 
-Creates a practical financial tip.
+Creates a practical financial tip focused on stronger savings habits.
 
 Maps to:
 
@@ -68,7 +68,7 @@ POST /api/infra/v1/tips/generate
 
 ### `osher.vault.depositIntent`
 
-Creates a wallet-safe deposit intent.
+Creates a wallet-safe deposit intent for protecting goal money.
 
 Maps to:
 
@@ -90,9 +90,9 @@ POST /api/infra/v1/context/savings-summary
 
 - Do not ask users for private keys.
 - Do not claim funds have moved until a wallet transaction is confirmed.
-- Treat deposit intents as preparation steps.
+- Treat deposit intents as preparation steps for user-approved goal funding.
 - Always tell the user when wallet approval is required.
-- Keep explanations short and practical.
+- Keep explanations short, practical, and focused on savings discipline.
 - Use local-currency context when available.
 
 ## Example Agent Call
@@ -103,4 +103,4 @@ Run the example integration from this repository:
 OSHER_BASE_URL=https://osherai.onrender.com OSHER_API_KEY=your_key npm run infra:agent-demo
 ```
 
-This demonstrates a third-party agent parsing a savings goal, creating a plan, and preparing a wallet-safe deposit intent through Osher Infrastructure.
+This demonstrates a third-party agent parsing a savings goal, creating a discipline plan, and preparing a wallet-safe deposit intent through Osher Infrastructure.

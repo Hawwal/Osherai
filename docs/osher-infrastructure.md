@@ -1,13 +1,13 @@
 # Osher Infrastructure
 
-Osher Infrastructure is the builder API and SDK layer behind Osher AI, an AI savings agent that lets wallets, fintech apps, and autonomous agents add AI-powered Celo stablecoin savings intelligence to any platform.
+Osher Infrastructure is the builder API and SDK layer behind Osher AI, a savings discipline agent that lets wallets, fintech apps, and autonomous agents add AI-powered Celo stablecoin savings discipline intelligence to any platform.
 
 The infrastructure provides natural-language goal parsing, real-time savings plans, local-currency display, personalized nudges, practical money tips, wallet-safe deposit intents, and paid x402 agent access for Celo stablecoin savings.
 
 ## Mainnet Contract
 
-- Savings vault: `0xc1dCD2e711Acf54694aA25437596dfBE042399De`
-- Celoscan: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De
+- Savings vault: `0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42`
+- Celoscan: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42
 - Evidence checklist: `docs/mainnet-evidence.md`
 
 ## Product Summary
@@ -28,7 +28,7 @@ The API returns:
 - purpose/category
 - weekly savings target
 - user-facing summary
-- vault deposit intent when funds are ready to move
+- wallet-safe deposit intent when funds are ready to move
 
 Funds remain self-custodial. Osher prepares actions; the user's wallet approves transactions.
 
@@ -38,7 +38,7 @@ Funds remain self-custodial. Osher prepares actions; the user's wallet approves 
 - Create structured savings plans.
 - Convert local-currency goals into USDT targets.
 - Generate weekly nudges and financial tips.
-- Produce vault deposit intents for Celo wallet approval.
+- Produce wallet-safe deposit intents for Celo wallet approval.
 - Summarize a user's savings context for other agents.
 - Support MiniPay-first and MetaMask fallback wallet flows.
 

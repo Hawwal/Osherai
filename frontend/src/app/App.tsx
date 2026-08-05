@@ -221,7 +221,7 @@ export default function App() {
       if (goal) {
         setSelectedGoalId(goal.id);
         setOverlay('goal-detail');
-        setNotice('Create this goal vault first, then tap Top up.');
+        setNotice('Protect this goal first, then tap Top up.');
       }
     }
     return response?.message || response?.error || 'I could not process that yet.';
@@ -247,23 +247,23 @@ export default function App() {
     setOverlay('goal-detail');
     const firstTopUp = Number(goalInput.startingDeposit || 0);
     setNotice(firstTopUp > 0
-      ? `${result.goal?.name || 'Goal'} created. Create its vault, then top up ${firstTopUp.toFixed(2)} ${goalInput.currency}.`
+      ? `${result.goal?.name || 'Goal'} created. Protect it, then top up ${firstTopUp.toFixed(2)} ${goalInput.currency}.`
       : (result.message || `${result.goal?.name || 'Goal'} created.`));
   };
 
   const ensureVaultReady = () => {
     if (!walletInfo.address) throw new Error('Connect MiniPay or MetaMask first.');
-    if (!data.contracts?.savingsVault) throw new Error('Savings vault is not configured yet. Set OSHER_SAVINGS_VAULT after deployment.');
+    if (!data.contracts?.savingsVault) throw new Error('Goal protection is not configured yet. Set OSHER_SAVINGS_VAULT after deployment.');
     if (!data.contracts?.savingsToken) throw new Error('Savings token is not configured yet.');
     if (data.contracts.vaultReady === false) {
-      throw new Error(data.contracts.vaultIssue || 'Savings vault needs to be updated before deposits.');
+      throw new Error(data.contracts.vaultIssue || 'Goal protection needs to be updated before deposits.');
     }
   };
 
   const reconcileGoals = async () => {
     const result = await apiJson<any>('/api/goals/' + encodeURIComponent(SESSION_ID) + '/reconcile', { method: 'POST' }).catch(err => ({ error: cleanWalletError(err) }));
     await refreshData();
-    setNotice(result.message || result.error || 'Goal balances refreshed from the vault.');
+    setNotice(result.message || result.error || 'Goal balances refreshed from chain.');
   };
 
   const createVaultGoal = async (goal: SavingsGoal) => {
@@ -302,7 +302,7 @@ export default function App() {
       if (!goal.vaultGoalCreated) {
         setSelectedGoalId(goal.id);
         setOverlay('goal-detail');
-        throw new Error('Create this goal vault first, then top it up.');
+        throw new Error('Protect this goal first, then top it up.');
       }
       const amount = Number(presetAmount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid USDT amount.');
@@ -315,7 +315,7 @@ export default function App() {
         const currentBalance = formatUnits(balanceUnits, SAVINGS_TOKEN_DECIMALS, 2);
         throw new Error(`Your connected ${isMiniPay() ? 'MiniPay' : 'wallet'} USDT balance is ${currentBalance} USDT, but this top-up needs ${amount.toFixed(2)} USDT. Add USDT to this wallet or choose a smaller top-up amount, then try again.`);
       }
-      setNotice('Approve USDT for the vault...');
+      setNotice('Approve USDT for this protected goal...');
       const approveHash = await ethereum.request({
         method: 'eth_sendTransaction',
         params: [{
@@ -472,7 +472,7 @@ export default function App() {
       const amountUnits = parseUnits(amount, SAVINGS_TOKEN_DECIMALS);
       const vaultGoalId = goal.vaultGoalId || bytes32FromString(goal.id);
       const ethereum = (window as any).ethereum;
-      setNotice('Approve USDT round-up for the vault...');
+      setNotice('Approve USDT round-up for this protected goal...');
       const approveHash = await ethereum.request({
         method: 'eth_sendTransaction',
         params: [{ from: walletInfo.address, to: data.contracts.savingsToken, value: '0x0', data: appendCeloAttribution(encodeErc20Approve(data.contracts.savingsVault!, amountUnits)) }],
@@ -534,7 +534,7 @@ export default function App() {
   const handleHomeDeposit = () => {
     const goal = data.goals[0];
     if (!goal) {
-      setNotice('Create a savings goal first, then you can deposit into it.');
+      setNotice('Create a savings goal first, then you can protect and top it up.');
       setOverlay('manual-goal');
       return;
     }

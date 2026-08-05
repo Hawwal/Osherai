@@ -1,24 +1,27 @@
 # Osher AI
 
-Osher AI is an AI savings agent with an infrastructure layer that lets wallets, fintechs, and agents add AI-powered Celo stablecoin savings intelligence to any platform. The agent understands natural language commands, autonomously saves, tailors a personal savings plan in real time, and more. This project makes savings easier.
+Osher AI is a savings discipline app and agent layer for Celo stablecoin users. It helps people stop mixing important savings with daily spending by turning natural-language goals into weekly plans, nudges, streaks, and wallet-approved USDT top-ups.
 
-The consumer app helps users create savings goals, receive AI coaching, and deposit USDT into goal-based vaults. Osher Infrastructure exposes the same savings intelligence through builder APIs and a JavaScript SDK for wallets, fintech apps, and autonomous agents.
+The consumer app is MiniPay-first, with MetaMask as a fallback. Users can create goals, understand their weekly target, view local-currency equivalents, and protect goal money in a Celo savings contract only after wallet approval. Osher Infrastructure exposes the same savings discipline intelligence through builder APIs, x402 paid access, and a JavaScript SDK for wallets, fintech apps, and autonomous agents.
+
+The vault is the separation and control mechanism. The core value is habit formation, goal clarity, local-currency relevance, and non-custodial user control.
 
 ## Product Direction
 
-Osher AI app combines a goal-based savings with self-custodial Celo stablecoin rails. The product is designed for emerging-market users who think in local currency but want savings that can be tracked in USDT.
+Osher AI is designed for emerging-market users who need a practical way to build a stronger savings culture. The app focuses on disciplined goal saving first: rent, school fees, emergencies, travel, gadgets, and other life goals that should not compete with daily spending.
 
 ## Current Baseline
 - Celo-only network support.
 - MiniPay as the primary wallet.
 - MetaMask as fallback for users who already hold Celo stablecoins.
 - Wallet login proof after connection.
-- In-app chat endpoint for balance checks, goal creation, alerts, and basic Celo transaction preparation.
-- Supabase-ready persistence for users, wallets, goals, transactions, and agent logs with a local memory fallback.
-- `OsherSavingsVault.sol` for goal creation, deposits, round-ups, agent auto-sweeps, locked withdrawals, and owner pause controls.
+- AI chat for savings coaching, balance checks, goal creation, tips, and wallet-safe action preparation.
+- Supabase-ready persistence for users, wallets, goals, transactions, chat history, and agent logs with a local memory fallback.
+- `OsherSavingsVault.sol` for goal creation, deposits, round-ups, permissioned agent sweep controls, locked withdrawals, and owner pause controls.
 - Existing Render deployment shape is retained.
 - Private-beta Osher Infrastructure endpoints under `/api/infra/v1`.
 - JavaScript SDK under `sdk/osher-js`.
+- x402 paid agent endpoint under `/api/x402/invoke`.
 
 ## Supported Assets
 - USDT on Celo
@@ -27,18 +30,20 @@ Osher AI app combines a goal-based savings with self-custodial Celo stablecoin r
 - CELO for network fees
 
 ## Key User Flows
-1. User opens Osher AI.
-2. User connects MiniPay or MetaMask.
-3. Wallet submits a zero-value Celo transaction to prove control.
-4. User can check Celo balances or create a savings goal in natural language.
-5. Osher stores the goal in persistence and prepares it for vault deposits.
+1. User opens Osher AI and learns the savings discipline promise.
+2. User signs up or explores as a guest.
+3. User creates a goal in natural language or through the manual form.
+4. Osher creates a weekly habit plan and tracks progress.
+5. User connects MiniPay or MetaMask when ready to fund the goal.
+6. User approves each wallet transaction before money moves.
+7. Osher keeps the user accountable with progress, streaks, tips, and nudges.
 
 ## API Endpoints
 - `POST /api/message` - chat and intent handling.
 - `POST /api/transaction-complete` - verify completed Celo transactions.
 - `GET /api/transaction/status` - check Celo/EVM transaction status.
 - `GET /api/network` - expose configured Celo network.
-- `GET /api/contracts` - expose public savings vault configuration.
+- `GET /api/contracts` - expose public savings contract configuration.
 - `GET /api/goals/:sessionId` - load persisted goals for a browser session.
 - `GET /api/persistence` - show whether storage is Supabase or local memory.
 - `GET /api/price` - basic token price lookup.
@@ -57,9 +62,9 @@ Key capabilities:
 - goal parsing
 - goal planning
 - public sandbox endpoints
-- savings nudges
-- financial tips
-- vault deposit intents
+- savings accountability nudges
+- discipline-focused financial tips
+- wallet-safe deposit intents
 - savings context summaries
 - OpenAPI metadata at `/api/infra/v1/openapi.json`
 - developer portal at `/developers.html`
@@ -75,10 +80,10 @@ Documentation:
 
 ## Mainnet Evidence
 
-- Savings vault: `0xc1dCD2e711Acf54694aA25437596dfBE042399De`
-- Celoscan: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De
-- Contract source tab: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#code
-- Transactions: https://celoscan.io/address/0xc1dCD2e711Acf54694aA25437596dfBE042399De#transactions
+- Savings vault: `0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42`
+- Celoscan: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42
+- Contract source tab: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42#code
+- Transactions: https://celoscan.io/address/0xB22557bA1a126C3C26f2b46F4da14b1a4785FE42#transactions
 - Evidence checklist: `docs/mainnet-evidence.md`
 
 Print current evidence links:
@@ -104,7 +109,7 @@ Visit `http://localhost:3000`.
 NETWORK=mainnet
 AI_PROVIDER=fireworks
 FIREWORKS_API_KEY=fw_...
-AI_MODEL=accounts/fireworks/models/llama-v3p1-70b-instruct
+AI_MODEL=accounts/fireworks/models/kimi-k2p7-code
 RPC_CELO=https://forno.celo.org
 PUBLIC_URL=https://your-render-url.onrender.com
 SERVICE_FEE_WALLET=0x...

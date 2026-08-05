@@ -11,22 +11,22 @@ interface Props {
 const slides = [
   {
     eyebrow: "Step 1",
-    title: "Tell Osher what you want.",
-    copy: "Type a goal in normal words. Osher turns it into a simple savings plan.",
+    title: "Separate savings from spending.",
+    copy: "Tell Osher what money you want to protect. It turns the goal into a weekly plan you can actually follow.",
     cta: "Next",
     theme: "lavender",
   },
   {
     eyebrow: "Step 2",
-    title: "Save in small, steady moves.",
-    copy: "Build a habit with weekly targets, nudges, streaks, and quick top-ups.",
+    title: "Build the habit, one top-up at a time.",
+    copy: "Use streaks, nudges, and tiny repeatable amounts so big goals stop competing with daily spending.",
     cta: "Next",
     theme: "ink",
   },
   {
     eyebrow: "Step 3",
-    title: "Stay in control of your money.",
-    copy: "Use MiniPay or MetaMask when you are ready. Every deposit or withdrawal asks for your approval.",
+    title: "You approve every money move.",
+    copy: "Connect MiniPay or MetaMask when ready. Osher never holds private keys; deposits and withdrawals need your wallet approval.",
     cta: "Get started",
     theme: "paper",
   },
@@ -64,13 +64,13 @@ function GoalIllustration({ active }: { active: boolean }) {
           </div>
         </div>
         <div className="rounded-2xl bg-[#f5f5fb] p-3">
-          <p className="text-[0.72rem] font-bold text-[#77779c]">Osher plan</p>
+          <p className="text-[0.72rem] font-bold text-[#77779c]">Weekly plan</p>
           <p className="font-display mt-1 text-[1rem] font-extrabold text-[#171717]">Save ₦20,833 weekly</p>
         </div>
       </div>
       <div className={`absolute left-1 top-20 rounded-2xl bg-[#171717] px-3.5 py-3 text-white shadow-[0_16px_34px_rgba(23,23,23,0.24)] transition-all delay-150 duration-700 ${active ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}>
         <Sparkles size={15} />
-        <p className="mt-1 text-[0.72rem] font-bold">AI plan</p>
+        <p className="mt-1 text-[0.72rem] font-bold">Habit plan</p>
       </div>
       <div className={`absolute bottom-7 right-5 grid size-12 place-items-center rounded-2xl bg-[#c4ecd0] text-[#171717] shadow-[0_14px_28px_rgba(23,23,23,0.16)] transition-all delay-300 duration-700 ${active ? "scale-100 opacity-100" : "scale-75 opacity-0"}`}>
         <Check size={22} strokeWidth={3} />
@@ -98,7 +98,7 @@ function HabitIllustration({ active }: { active: boolean }) {
           </div>
         ))}
         <div className="mt-4 rounded-2xl bg-[#11805d] px-4 py-3 text-center">
-          <p className="font-display text-[0.95rem] font-extrabold text-white">Top up when ready</p>
+          <p className="font-display text-[0.95rem] font-extrabold text-white">Save a little today</p>
         </div>
       </div>
       <div className={`absolute -right-1 bottom-10 rounded-2xl bg-white px-4 py-3 shadow-[0_16px_34px_rgba(0,0,0,0.18)] transition-all delay-200 duration-700 ${active ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}>
@@ -115,7 +115,7 @@ function ControlIllustration({ active }: { active: boolean }) {
       <div className="absolute inset-0 rounded-full bg-[#CCCCF7]/30 blur-2xl" />
       <div className={`absolute left-8 top-6 w-[236px] rounded-[38px] bg-[#171717] p-5 text-white shadow-[0_28px_62px_rgba(23,23,23,0.28)] transition-all duration-700 ${active ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}>
         <div className="mb-6 flex items-center justify-between">
-          <p className="text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-white/45">Your wallet</p>
+          <p className="text-[0.72rem] font-extrabold uppercase tracking-[0.14em] text-white/45">Your control</p>
           <WalletCards size={20} color="#CCCCF7" />
         </div>
         <div className="mx-auto grid size-24 place-items-center rounded-[30px] bg-[#CCCCF7] text-[#171717]">
@@ -145,6 +145,11 @@ export function OnboardingScreen({ onContinue, onSkip }: Props) {
   const slide = slides[page];
   const isLast = page === slides.length - 1;
   const dark = slide.theme === "ink";
+  const ctaClass = dark
+    ? "bg-[#11805d] text-white"
+    : isLast
+      ? "bg-[#171717] text-white"
+      : "bg-[#171717] text-white";
 
   const advance = () => {
     if (isLast) onContinue();
@@ -191,7 +196,7 @@ export function OnboardingScreen({ onContinue, onSkip }: Props) {
             <span className="w-12" />
           </div>
 
-          <button onClick={advance} className={`flex w-full items-center justify-center gap-2.5 rounded-3xl py-4 text-[1rem] font-extrabold shadow-[0_14px_30px_rgba(23,23,23,0.16)] transition-transform active:scale-[0.98] ${dark ? "bg-[#CCCCF7] text-[#171717]" : "bg-[#171717] text-white"}`}>
+          <button onClick={advance} className={`flex w-full items-center justify-center gap-2.5 rounded-3xl py-4 text-[1rem] font-extrabold shadow-[0_14px_30px_rgba(23,23,23,0.16)] transition-transform active:scale-[0.98] ${ctaClass}`}>
             {slide.cta} {isLast ? <ArrowRight size={19} /> : <ChevronRight size={19} />}
           </button>
         </footer>
